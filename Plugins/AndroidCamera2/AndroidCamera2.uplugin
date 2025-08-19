@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "Android Camera2",
+  "Description": "Captura de imágenes usando la API Camera2 en dispositivos Android con soporte para Vulkan. Fase 1: captura básica sin vista previa.",
+  "Category": "Android",
+  "CreatedBy": "Yesid Fonseca",
+  "Modules": [
+	{
+      "Name": "AndroidCamera2UECore",
+      "Type": "Runtime",
+      "LoadingPhase": "PostEngineInit"
+    },
+    {
+      "Name": "AndroidCamera2",
+      "Type": "Runtime",
+      "LoadingPhase": "PostEngineInit",
+      "PlatformAllowList": [ "Android" ]
+    }
+  ]
+}

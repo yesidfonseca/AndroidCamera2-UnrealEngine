@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <init>
+        <log text="AndroidCamera2 init"/>
+        <setBool result="bSupported" value="true"/>
+    </init>
+
+    <androidManifestUpdates>
+        <if condition="bSupported">
+            <true>
+                <addPermission android:name="android.permission.CAMERA"/>
+                <addFeature android:name="android.hardware.camera.any" android:required="true"/>
+            </true>
+        </if>
+    </androidManifestUpdates>
+
+    <resourceCopies>
+        <if condition="bSupported">
+            <true>
+                <copyDir src="$S(PluginDir)/Java" dst="$S(BuildDir)" />
+            </true>
+        </if>
+    </resourceCopies>
+
+    <proguardAdditions>
+        <insert>
+-keep class com.FonseCode.camera2.Camera2UE { *; }
+        </insert>
+    </proguardAdditions>
+
+</root>
