@@ -7,8 +7,8 @@
 FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V")
 {
 	GetCameraIdListMethod = GetClassMethod("getCameraIdList", "()[Ljava/lang/String;");
-	InitializeCameraMethod = GetClassMethod("initializeCamera", "(Ljava/lang/String;)Z");
-	TakePhotoMethod = GetClassMethod("takePhoto", "()V"); 
+	InitializeCameraMethod = GetClassMethod("initializeCamera", "(Ljava/lang/String;IIII)Z");
+	TakePhotoMethod = GetClassMethod("takePhoto", "()Z"); 
 	GetLastCapturedImageMethod = GetClassMethod("getLastCapturedImage", "()[B"); 
 	SaveResultMethod = GetClassMethod("saveResult", "()Ljava/lang/String;");
 	ReleaseMethod = GetClassMethod("release", "()V");
@@ -52,16 +52,23 @@ TArray<FString> FAndroidCamera2Java::GetCameraIdList()
 	return OutIds;
 }
 
-bool FAndroidCamera2Java::InitializeCamera(const FString& CameraId)
+bool FAndroidCamera2Java::InitializeCamera(const FString& CameraId, uint8 AEMode, uint8 AFMode, uint8 AWBMode, uint8 ControlMode)
 {
-	bool Result = CallMethod<bool>(InitializeCameraMethod, *GetJString(CameraId));
-	return Result;
+	bool bOK = CallMethod<bool>(
+		InitializeCameraMethod,
+		*GetJString(CameraId),
+		static_cast<jint>(AEMode),
+		static_cast<jint>(AFMode),
+		static_cast<jint>(AWBMode),
+		static_cast<jint>(ControlMode)
+	);
+
+	return bOK;
 }
 
 bool FAndroidCamera2Java::TakePhoto()
 {
-	CallMethod<void>(TakePhotoMethod);
-	return true;
+	return CallMethod<bool>(TakePhotoMethod);
 }
 
 bool FAndroidCamera2Java::GetLastCapturedImage(TArray<uint8>& OutJpeg) const

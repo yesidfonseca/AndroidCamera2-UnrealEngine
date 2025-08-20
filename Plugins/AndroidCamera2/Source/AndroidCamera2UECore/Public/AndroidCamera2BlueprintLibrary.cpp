@@ -26,12 +26,18 @@ TArray<FString> UAndroidCamera2BlueprintLibrary::GetCameraIdList()
     return CameraList;
 }
 
-bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId)
+bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode)
 {
     if (IsValidAC2J())
     {
 #if PLATFORM_ANDROID
-        return AndroidCamera2Java->InitializeCamera(CameraId);
+        return AndroidCamera2Java->InitializeCamera(
+            CameraId,
+            static_cast<uint8>(AEMode),
+            static_cast<uint8>(AFMode),
+            static_cast<uint8>(AWBMode),
+            static_cast<uint8>(ControlMode)
+        );
 #endif
     }
     else

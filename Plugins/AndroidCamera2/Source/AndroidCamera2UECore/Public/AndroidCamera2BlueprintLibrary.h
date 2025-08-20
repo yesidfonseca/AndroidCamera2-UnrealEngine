@@ -6,6 +6,56 @@
 #include "AndroidCamera2BlueprintLibrary.generated.h"
 
 
+// Auto White Balance (AWB) modes — mirror de CameraMetadata.CONTROL_AWB_MODE_*
+UENUM(BlueprintType)
+enum class EAndroidCamera2AWBMode : uint8
+{
+	OFF = 0,
+	AUTO = 1,
+	INCANDESCENT = 2,
+	FLUORESCENT = 3,
+	WARM_FLUORESCENT = 4,
+	DAYLIGHT = 5,
+	CLOUDY_DAYLIGHT = 6,
+	TWILIGHT = 7,
+	SHADE = 8
+};
+
+// Auto Exposure (AE) modes — mirror de CameraMetadata.CONTROL_AE_MODE_*
+UENUM(BlueprintType)
+enum class EAndroidCamera2AEMode : uint8
+{
+	OFF = 0,
+	ON = 1,
+	ON_AUTO_FLASH = 2,
+	ON_ALWAYS_FLASH = 3,
+	ON_AUTO_FLASH_REDEYE = 4,
+	ON_EXTERNAL_FLASH = 5
+};
+
+// Auto Focus (AF) modes — mirror de CameraMetadata.CONTROL_AF_MODE_*
+UENUM(BlueprintType)
+enum class EAndroidCamera2AFMode : uint8
+{
+	OFF = 0,
+	AUTO = 1,
+	MACRO = 2,
+	CONTINUOUS_VIDEO = 3,
+	CONTINUOUS_PICTURE = 4,
+	EDOF = 5
+};
+
+// Control Mode — mirror de CameraMetadata.CONTROL_MODE_*
+UENUM(BlueprintType)
+enum class EAndroidCamera2ControlMode : uint8
+{
+	OFF = 0,
+	AUTO = 1 ,
+	USE_SCENE_MODE = 2,
+	OFF_KEEP_STATE = 3,
+	USE_EXTENDED_SCENE_MODE = 4
+};
+
 /**
  * Funciones de alto nivel para usar Camera2 desde UE5.
  * - En Android: llaman a la capa JNI (wrapper FJavaAndroidCamera2 en el módulo Android).
@@ -28,7 +78,7 @@ public:
 	 * @return true si se inició la apertura/configuración correctamente.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Android|Camera2", DisplayName="Initialize Camera (by Id)")
-	static bool InitializeCamera(const FString& CameraId);
+	static bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode);
 
 	/**
 	 * Dispara una captura (TEMPLATE_STILL_CAPTURE). El resultado queda en memoria interna de la capa Java.
