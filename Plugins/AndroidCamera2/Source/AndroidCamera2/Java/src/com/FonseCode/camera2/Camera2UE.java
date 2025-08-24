@@ -24,6 +24,7 @@ import android.util.Range;
 import android.view.Surface;
 import androidx.annotation.Nullable;
 import android.os.Trace; // o: import android.os.Trace;
+
 import com.epicgames.unreal.GameActivity;
 
 import java.io.File;
@@ -42,6 +43,27 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class Camera2UE {
 
+    private final class FpsMeter {
+        private long winStartNs = -1, lastTs = -1;
+        private int  winCount = 0;
+        volatile double fps = 0.0;     // último cálculo (entrega efectiva)
+        private double emaNs = -1;     // suavizado exponencial de dt
+
+        void onFrameTs(long ts) {
+            if (winStartNs < 0) winStartNs = ts;
+            if (lastTs > 0) {
+                long dt = ts - lastTs;               // ns entre frames entregados
+                if (dt > 0) emaNs = (emaNs < 0) ? dt : (0.9*emaNs + 0.1*dt);
+            }
+            lastTs = ts;
+            if (++winCount >= 15 || ts - winStartNs >= 1_000_000_000L) {
+                fps = (winCount - 1) * 1e9 / (ts - winStartNs);
+                winStartNs = ts;
+                winCount = 1;
+            }
+            Log.d("FpsMeter", "FPS:" + fps);
+        }
+    }
 
     public class FrameUpdateInfo {
         private ByteBuffer dy, du, dv ;
@@ -53,9 +75,8 @@ public final class Camera2UE {
         public ByteBuffer y, v, u;
         public int imgWidth, imgHeight;
         public int Orientation; //0->0 degress, 1->90 degress, 2->180 degress, 3->270 degress
-        private void setOrientation(int newOrientation)
+        private void setOutputDataAndPointers()
         {
-            Orientation = newOrientation;
             if(Orientation==0) {
                 y = dy;
                 u = du;
@@ -107,6 +128,9 @@ public final class Camera2UE {
                     dy.clear(); du.clear(); dv.clear();
                 }
             }
+
+            setOutputDataAndPointers();
+
         }
 
     }
@@ -118,6 +142,8 @@ public final class Camera2UE {
     private int AWB_Mode = CameraMetadata.CONTROL_AWB_MODE_OFF; // Modo AWB desactivado por defecto
 
     private Context appContext;
+
+    private final FpsMeter fpsMeter = new FpsMeter();
 
     private long framecounter = 0;
     FrameUpdateInfo FrameInfo = new FrameUpdateInfo();
@@ -153,6 +179,8 @@ public final class Camera2UE {
     private static enum CaptureState { STATE_IDLE, STATE_WAITING_LOCK, STATE_WAITING_PRECAPTURE, STATE_WAITING_STILLCAPTURE, STATE_PICTURE_TAKEN }
     private CaptureState mCaptureState = CaptureState.STATE_IDLE;
 
+    private Range<Integer> FPS;
+
     private static final long PRECAPTURE_TIMEOUT_MS = 1000;
 
     private boolean initialized = false;
@@ -164,19 +192,18 @@ public final class Camera2UE {
 
 
     public Camera2UE(Context context) {
-
         this.appContext = context.getApplicationContext();
     }
 
     private Camera2UE() {
-        GameActivity ga = GameActivity.Get();
-        if (ga == null) {
-            Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
-            return;
-        }
+    GameActivity ga = GameActivity.Get();
+    if (ga == null) {
+        Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
+        return;
+    }
 
-        appContext = ga.getApplicationContext();
-    }    
+    appContext = ga.getApplicationContext();
+}
 
     // -------------------------------------------------------
     // 1) Obtener lista de camaras disponibles (IDs de Camera2)
@@ -201,17 +228,10 @@ public final class Camera2UE {
      * @return true si se inicio el flujo de apertura correctamente; false si el ID no es valido o ocurrio un error temprano.
      */
     @SuppressLint("MissingPermission")
-    public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn, int RotMode) {
+    public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn, int RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS) {
         try {
 
-            mRotationMode = RotationMode.values()[RotMode];
-            Log.d(TAG, "rotationMode:" + mRotationMode);
-            int mOrientation = RotMode;
-            if(mRotationMode==RotationMode.RSensor)
-            {
-                mOrientation = cameraManager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)/90;
-            }
-            FrameInfo.setOrientation(mOrientation);
+
 
             ensureManager();
             if (inputCameraId == null || inputCameraId.isEmpty()) {
@@ -225,9 +245,18 @@ public final class Camera2UE {
                 return false;
             }
 
-            this.cameraId = inputCameraId;
+            cameraId = inputCameraId;
 
-            
+            mRotationMode = RotationMode.values()[RotMode];
+            Log.d(TAG, "rotationMode:" + mRotationMode);
+            int mOrientation = RotMode;
+            if(mRotationMode==RotationMode.RSensor)
+            {
+                mOrientation = cameraManager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)/90;
+            }
+            FrameInfo.Orientation = mOrientation;
+
+
 
             // Elegir tamanos
             CameraCharacteristics cc = cameraManager.getCameraCharacteristics(cameraId);
@@ -239,11 +268,13 @@ public final class Camera2UE {
 
             // JPEG: elegir el tamano mas grande disponible
             Size[] jpegSizes = map.getOutputSizes(ImageFormat.JPEG);
-            jpegSize = (jpegSizes != null && jpegSizes.length > 0) ? Collections.max(Arrays.asList(jpegSizes), new CompareSizesByArea()) : new Size(1920, 1080);
+            jpegSize = pickNearesSize(jpegSizes, stillCaptureWidth, stillCaptureHeight);
+            jpegSize = (jpegSize == null)? new Size(1920, 1080) : jpegSize;
+            Log.d(TAG, "jpegSize: w:" +jpegSize.getWidth() + " , h:" + jpegSize.getHeight());
 
             // YUV: buen tamano para preview (elige 1280x720 si existe, si no el mas cercano <=1080p)
             Size[] yuvSizes = map.getOutputSizes(ImageFormat.YUV_420_888);
-            yuvSize = pickYuvPreviewSize(yuvSizes);
+            yuvSize = pickNearesSize(yuvSizes, previewWidth, previewHeight);
             Log.d(TAG, "yuvSize: w:" +yuvSize.getWidth() + " , h:" + yuvSize.getHeight());
 
             // Readers
@@ -253,6 +284,8 @@ public final class Camera2UE {
 
             yuvReader.setOnImageAvailableListener(yuvListener, getBackgroundHandler());
             jpegReader.setOnImageAvailableListener(jpegListener, getBackgroundHandler());
+
+            FPS = pickFpsRange(cameraManager.getCameraCharacteristics(cameraId),targetFPS);
 
             // Abrir camara (asincrono)
             openCamera();
@@ -288,6 +321,9 @@ public final class Camera2UE {
                 previewBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, minusOneEv);
             }
 
+            if(FPS != null) {
+                previewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, FPS);
+            }
             previewRequest = previewBuilder.build();
             captureSession.setRepeatingRequest(previewRequest, captureCallback, getBackgroundHandler());
             Log.e(TAG, "startPreviewRepeating: start todo bien");
@@ -615,21 +651,22 @@ public final class Camera2UE {
         }
     }
 
-    private Size pickYuvPreviewSize(Size[] sizes) {
+    private Size pickNearesSize(Size[] sizes, int desiredWidth, int desiredHeight) {
         if (sizes == null || sizes.length == 0) return new Size(1280, 720);
-        // preferimos 1280x720 si existe; si no, la mayor <=1080p; si no, la mayor disponible
-        Size best720 = null, bestUnder1080 = null, max = sizes[0];
+        // minimizamos el area de la diferencia simetrica entre el size deseada y los size existentes
+        Size nearestSize = new Size(1280, 720);
+        long minSymmetricDifferenceArea = 100000000;
         for (Size s : sizes) {
-            if (s.getWidth() == 1280 && s.getHeight() == 720) best720 = s;
-            if (s.getWidth() * s.getHeight() > max.getWidth() * max.getHeight()) max = s;
-            if (s.getHeight() <= 1080) {
-                if (bestUnder1080 == null || (s.getWidth()*s.getHeight() > bestUnder1080.getWidth()*bestUnder1080.getHeight()))
-                    bestUnder1080 = s;
+            long currentSymmetricDifferenceArea = Math.abs(s.getWidth()-desiredWidth)*Math.min(s.getHeight(),desiredHeight)+
+                    Math.abs(s.getHeight()-desiredHeight)*Math.min(s.getWidth(),desiredWidth)+
+                    Math.max(0,(desiredHeight-s.getHeight())*(desiredWidth-s.getWidth()));
+            if(currentSymmetricDifferenceArea<= minSymmetricDifferenceArea) {
+                minSymmetricDifferenceArea = currentSymmetricDifferenceArea;
+                nearestSize = s;
             }
         }
-        if (best720 != null) return best720;
-        if (bestUnder1080 != null) return bestUnder1080;
-        return max;
+
+        return nearestSize;
     }
 
     // Listener JPEG: guardar bytes en lastJpeg
@@ -660,6 +697,7 @@ public final class Camera2UE {
                 image = drain;
             }
             if (image != null) {
+                fpsMeter.onFrameTs(image.getTimestamp());
                 onYuvImage(image);  // respeta rowStride/pixelStride
             }
         } catch (Throwable t) {
@@ -831,9 +869,6 @@ public final class Camera2UE {
     }
 
 
-    // --- Asegurar tamaño (llamar cuando llegue el primer frame o cambien W/H) ---
-
-
     // --- Productor (listener) ---
     private void onYuvImage(Image image) {
         int w = image.getWidth(), h = image.getHeight();
@@ -846,7 +881,7 @@ public final class Camera2UE {
 
             packtoI420Lib(image);
             framecounter++;
-            Log.d(TAG, "FrameCounter=" + framecounter);
+            //Log.d(TAG, "FrameCounter=" + framecounter);
         }
     }
 
@@ -868,6 +903,22 @@ public final class Camera2UE {
     private void changeCaptureStateStateAndNotify(CaptureState state) {
         mCaptureState = state;
         //TODO NOTIFY
+    }
+
+    /** Devuelve el mejor rango fijo que contenga 'targetFps' (p.ej. 30 o 60), o uno variable que lo incluya. */
+    public static Range<Integer> pickFpsRange(CameraCharacteristics ch, int targetFps) {
+        Range<Integer>[] ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+        if (ranges == null || ranges.length == 0) return null;
+
+        Range<Integer> exactFixed = null, contains = null;
+        for (Range<Integer> r : ranges) {
+            Log.d(TAG, "fps range available:" +r);
+            if (r.getLower() == targetFps && r.getUpper() == targetFps) {
+                exactFixed = r; break;
+            }
+            if (r.contains(targetFps) && contains == null) contains = r;
+        }
+        return exactFixed != null ? exactFixed : contains; // null si no existe
     }
 
 
