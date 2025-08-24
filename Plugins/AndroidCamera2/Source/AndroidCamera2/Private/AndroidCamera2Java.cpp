@@ -1,7 +1,7 @@
 #include "AndroidCamera2Java.h"
 #include "Android/AndroidApplication.h"
-#if PLATFORM_ANDROID
-// Archivo para registrar y manejar llamadas JNI desde Java
+#if WITH_LIBYUV
+#include "libyuv.h" // o <libyuv/convert.h>, etc. según necesites
 #endif
 
 FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V")

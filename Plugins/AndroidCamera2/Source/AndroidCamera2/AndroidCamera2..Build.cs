@@ -20,6 +20,7 @@ public class AndroidCamera2 : ModuleRules
             PrivateDependencyModuleNames.Add("Launch"); // AndroidJava / AndroidApplication
             string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
             AdditionalPropertiesForReceipt.Add("AndroidPlugin", Path.Combine(PluginPath, "AndroidCamera2_UPL.xml"));
+            PrivateDependencyModuleNames.Add("libyuv");
         }
     }
 }
