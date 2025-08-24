@@ -1,7 +1,6 @@
 package com.FonseCode.camera2;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -23,8 +22,8 @@ import android.util.Log;
 import android.util.Size;
 import android.util.Range;
 import android.view.Surface;
-
-
+import androidx.annotation.Nullable;
+import android.os.Trace; // o: import android.os.Trace;
 import com.epicgames.unreal.GameActivity;
 
 import java.io.File;
@@ -43,7 +42,75 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class Camera2UE {
 
-    private static final String TAG = "com.FonseCode.camera2.Camera2";
+
+    public class FrameUpdateInfo {
+        private ByteBuffer dy, du, dv ;
+        private int Width, Height;
+        private ByteBuffer dyRot, duRot, dvRot ;
+        private int WidthRot, HeightRot;
+        private final java.util.concurrent.atomic.AtomicBoolean reading = new java.util.concurrent.atomic.AtomicBoolean(false);
+        private final Object resizeLock = new Object();
+        public ByteBuffer y, v, u;
+        public int imgWidth, imgHeight;
+        public int Orientation; //0->0 degress, 1->90 degress, 2->180 degress, 3->270 degress
+        private void setOrientation(int newOrientation)
+        {
+            Orientation = newOrientation;
+            if(Orientation==0) {
+                y = dy;
+                u = du;
+                v = dv;
+            }
+            else
+            {
+                y = dyRot;
+                u = duRot;
+                v = dvRot;
+            }
+        }
+        private void ensureBufferSize(int w, int h) {
+            Height = h; Width = w;
+            HeightRot = h; WidthRot = w;
+            if(Orientation > 0)
+            {
+                if(Orientation%2 ==1) {
+                    WidthRot = h;
+                    HeightRot = w;
+                }
+
+                if(dyRot == null || dyRot.capacity() < w*h || duRot == null || duRot.capacity() < w*h/4 || dvRot == null || dvRot.capacity() < w*h/4)
+                {
+                    synchronized (resizeLock) {
+                        if (dyRot == null || dyRot.capacity() < w*h) dyRot = NativeYuv.allocDirect(w*h);
+                        if (duRot == null || duRot.capacity() < w*h/4) duRot = NativeYuv.allocDirect(w*h/4);
+                        if (dvRot == null || dvRot.capacity() < w*h/4) dvRot = NativeYuv.allocDirect(w*h/4);
+                        dyRot.clear(); duRot.clear(); dvRot.clear();
+                    }
+                }
+
+                imgWidth = WidthRot;
+                imgHeight = HeightRot;
+
+            }
+            else
+            {
+                imgWidth = Width;
+                imgHeight = Height;
+            }
+
+            if(dy == null || dy.capacity() < w*h || du == null || du.capacity() < w*h/4 || dv == null || dv.capacity() < w*h/4)
+            {
+                synchronized (resizeLock) {
+                    if (dy == null || dy.capacity() < w*h) dy = NativeYuv.allocDirect(w*h);
+                    if (du == null || du.capacity() < w*h/4) du = NativeYuv.allocDirect(w*h/4);
+                    if (dv == null || dv.capacity() < w*h/4) dv = NativeYuv.allocDirect(w*h/4);
+                    dy.clear(); du.clear(); dv.clear();
+                }
+            }
+        }
+
+    }
+    private static final String TAG = "com.FonseCode.camera2.Camera2UE";
 
     private int ControlMode = CameraMetadata.CONTROL_MODE_OFF;
     private int AF_Mode = CameraMetadata.CONTROL_AF_MODE_OFF; // Modo AF desactivado por defecto
@@ -51,6 +118,9 @@ public final class Camera2UE {
     private int AWB_Mode = CameraMetadata.CONTROL_AWB_MODE_OFF; // Modo AWB desactivado por defecto
 
     private Context appContext;
+
+    private long framecounter = 0;
+    FrameUpdateInfo FrameInfo = new FrameUpdateInfo();
 
 
     // Camera2
@@ -72,7 +142,6 @@ public final class Camera2UE {
     private CaptureRequest previewRequest;
 
     // ultimos datos capturados
-    private final AtomicReference<byte[]> lastI420 = new AtomicReference<>(null); // preview empaquetado a I420
     private final AtomicReference<byte[]> lastJpeg = new AtomicReference<>(null); // still JPEG
 
 
@@ -81,19 +150,24 @@ public final class Camera2UE {
     private Size jpegSize;  // para still JPEG
 
     // Estado 3A para takePhoto
-    private static final int STATE_IDLE                        = 0;
-    private static final int STATE_WAITING_LOCK                = 1;
-    private static final int STATE_WAITING_PRECAPTURE          = 2;
-    private static final int STATE_WAITING_STILLCAPTURE        = 3;
-    private static final int STATE_PICTURE_TAKEN               = 4;
-    private int captureState = STATE_IDLE;
+    private static enum CaptureState { STATE_IDLE, STATE_WAITING_LOCK, STATE_WAITING_PRECAPTURE, STATE_WAITING_STILLCAPTURE, STATE_PICTURE_TAKEN }
+    private CaptureState mCaptureState = CaptureState.STATE_IDLE;
 
     private static final long PRECAPTURE_TIMEOUT_MS = 1000;
 
     private boolean initialized = false;
 
     long precaptureTimestamp = 0;
-   
+
+    private static enum RotationMode { R0, R90, R180, R270, RSensor}
+    private RotationMode mRotationMode = RotationMode.R0;
+
+
+    public Camera2UE(Context context) {
+
+        this.appContext = context.getApplicationContext();
+    }
+
     private Camera2UE() {
         GameActivity ga = GameActivity.Get();
         if (ga == null) {
@@ -102,7 +176,7 @@ public final class Camera2UE {
         }
 
         appContext = ga.getApplicationContext();
-    }
+    }    
 
     // -------------------------------------------------------
     // 1) Obtener lista de camaras disponibles (IDs de Camera2)
@@ -127,8 +201,18 @@ public final class Camera2UE {
      * @return true si se inicio el flujo de apertura correctamente; false si el ID no es valido o ocurrio un error temprano.
      */
     @SuppressLint("MissingPermission")
-    public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn) {
+    public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn, int RotMode) {
         try {
+
+            mRotationMode = RotationMode.values()[RotMode];
+            Log.d(TAG, "rotationMode:" + mRotationMode);
+            int mOrientation = RotMode;
+            if(mRotationMode==RotationMode.RSensor)
+            {
+                mOrientation = cameraManager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)/90;
+            }
+            FrameInfo.setOrientation(mOrientation);
+
             ensureManager();
             if (inputCameraId == null || inputCameraId.isEmpty()) {
                 Log.e(TAG, "initializeCamera: cameraId vacio o nulo");
@@ -160,6 +244,7 @@ public final class Camera2UE {
             // YUV: buen tamano para preview (elige 1280x720 si existe, si no el mas cercano <=1080p)
             Size[] yuvSizes = map.getOutputSizes(ImageFormat.YUV_420_888);
             yuvSize = pickYuvPreviewSize(yuvSizes);
+            Log.d(TAG, "yuvSize: w:" +yuvSize.getWidth() + " , h:" + yuvSize.getHeight());
 
             // Readers
             closeReaders();
@@ -205,10 +290,14 @@ public final class Camera2UE {
 
             previewRequest = previewBuilder.build();
             captureSession.setRepeatingRequest(previewRequest, captureCallback, getBackgroundHandler());
+            Log.e(TAG, "startPreviewRepeating: start todo bien");
         } catch (Throwable t) {
             Log.e(TAG, "startPreviewRepeating failed", t);
         }
     }
+
+    /** Devuelve el último JPEG capturado (puede ser null si aún no has disparado). */
+    public byte[] getLastCapturedImage() { return lastJpeg.get(); }
 
     /** Dispara una foto JPEG con secuencia 3A: AF lock + AE precapture + still. */
     public synchronized boolean takePhoto() {
@@ -217,7 +306,7 @@ public final class Camera2UE {
             return false;
         }
         try {
-            captureState = STATE_WAITING_LOCK;
+            mCaptureState = CaptureState.STATE_WAITING_LOCK;
 
             // 1) AF trigger
             if(AF_Mode != CameraMetadata.CONTROL_AF_MODE_OFF)
@@ -226,7 +315,7 @@ public final class Camera2UE {
             }
 
             captureSession.capture(previewBuilder.build(), captureCallback, getBackgroundHandler());
-
+            Log.d(TAG, "takePhoto: capture request 1 lanzada");
             // El resto (AE precapture y still) ocurre en captureCallback cuando los estados reporten listo.
             return true;
         } catch (Throwable t) {
@@ -257,24 +346,31 @@ public final class Camera2UE {
         }
 
         private void process(CaptureResult result) {
+
             try {
-                switch (captureState) {
+
+
+                switch (mCaptureState) {
                     case STATE_WAITING_LOCK: {
                         Integer af = afState(result);
-
+                        Log.d(TAG, "captureCallback: STATE_WAITING_LOCK");
 
                         if (af == null || shouldSkipAFConvergence() || af == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED
                                 || af == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
                             // Revisa AE
                             Integer ae = aeState(result);
 
+                            Log.d(TAG, "captureCallback: STATE_WAITING_LOCK > AF success");
+
                             if (ae == null || shouldSkipAEConvergence() ||ae == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
-                                captureState = STATE_PICTURE_TAKEN;
+                                mCaptureState = CaptureState.STATE_PICTURE_TAKEN;
+                                Log.d(TAG, "captureCallback: STATE_WAITING_LOCK > AE success");
                                 captureStill();
                             } else {
                                 // Lanzar precapture
+                                Log.d(TAG, "captureCallback: STATE_WAITING_LOCK > AE success");
                                 precaptureTimestamp = SystemClock.elapsedRealtime();
-                                captureState = STATE_WAITING_PRECAPTURE;
+                                mCaptureState = CaptureState.STATE_WAITING_PRECAPTURE;
                                 previewBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_START);
                                 captureSession.capture(previewBuilder.build(), this, getBackgroundHandler());
                             }
@@ -288,8 +384,9 @@ public final class Camera2UE {
                         if (ae == null || ae == CaptureResult.CONTROL_AE_STATE_CONVERGED
                                 || ae == CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED || timedOut) {
 
-                            captureState = STATE_WAITING_STILLCAPTURE;
+                            mCaptureState = CaptureState.STATE_WAITING_STILLCAPTURE;
                             captureStill();
+                            Log.d(TAG, "captureCallback: STATE_WAITING_PRECAPTURE > AE success or time out");
                         }
                         break;
                     }
@@ -300,7 +397,7 @@ public final class Camera2UE {
                 // reanuda preview si algo falla
                 try { previewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL); } catch (Throwable ignored) {}
                 startPreviewRepeating();
-                captureState = STATE_IDLE;
+                mCaptureState = CaptureState.STATE_IDLE;
             }
         }
     };
@@ -333,6 +430,7 @@ public final class Camera2UE {
             still.set(CaptureRequest.CONTROL_AF_MODE, AF_Mode);
             still.set(CaptureRequest.CONTROL_AE_MODE, AE_Mode);
             still.set(CaptureRequest.CONTROL_AWB_MODE, AWB_Mode);
+            still.set(CaptureRequest.JPEG_ORIENTATION, FrameInfo.Orientation*90);
 
             // Compensa EV igual que preview si configuraste una
             if (previewBuilder.get(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION) != null) {
@@ -348,9 +446,10 @@ public final class Camera2UE {
                         previewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
                         previewBuilder.set(CaptureRequest.CONTROL_AE_LOCK, false);
                         previewBuilder.set(CaptureRequest.CONTROL_AWB_LOCK, false);
+                        Log.d(TAG, "captureStill: todo bien, puedes consultar la data");
                     } catch (Throwable ignored) {}
                     startPreviewRepeating();
-                    captureState = STATE_IDLE;
+                    mCaptureState = CaptureState.STATE_IDLE;
                 }
             }, getBackgroundHandler());
 
@@ -362,7 +461,8 @@ public final class Camera2UE {
                 previewBuilder.set(CaptureRequest.CONTROL_AWB_LOCK, false);
             } catch (Throwable ignored) {}
             startPreviewRepeating();
-            captureState = STATE_IDLE;
+            mCaptureState = CaptureState.STATE_IDLE;
+            Log.d(TAG, "captureStill: fail");
         }
     }
 
@@ -391,10 +491,17 @@ public final class Camera2UE {
 
 
     public synchronized void release() {
-        try { if (captureSession != null) { captureSession.close(); captureSession = null; } } catch (Throwable ignored) {}
-        try { if (cameraDevice != null) { cameraDevice.close(); cameraDevice = null; } } catch (Throwable ignored) {}
-        try { closeReaders();} catch (Throwable ignored) {}
+        try { if (captureSession != null) { captureSession.close(); captureSession = null; } } catch (Throwable ignored) {
+            Log.e(TAG, "release: " + ignored.getMessage(), ignored);
+        }
+        try { if (cameraDevice != null) { cameraDevice.close(); cameraDevice = null; } } catch (Throwable ignored) {
+            Log.e(TAG, "release: " + ignored.getMessage(), ignored);
+        }
+        try { closeReaders();} catch (Throwable ignored) {
+            Log.e(TAG, "release: " + ignored.getMessage(), ignored);
+        }
         stopBgThread();
+        framecounter = 0;
         Log.d(TAG, "Recursos liberados");
     }
 
@@ -455,6 +562,7 @@ public final class Camera2UE {
                     new CameraCaptureSession.StateCallback() {
                         @Override public void onConfigured(CameraCaptureSession session) {
                             captureSession = session;
+                            startPreviewRepeating();
                             Log.d(TAG, "CaptureSession configurada");
                         }
                         @Override public void onConfigureFailed(CameraCaptureSession session) {
@@ -484,7 +592,9 @@ public final class Camera2UE {
     private void stopBgThread() {
         if (camThread != null) {
             camThread.quitSafely();
-            try { camThread.join(); } catch (InterruptedException ignored) {}
+            try { camThread.join(); } catch (InterruptedException ignored) {
+                Log.e(TAG, "stopBgThread: " + ignored.getMessage(), ignored);
+            }
             camThread = null; bgHandler = null;
         }
     }
@@ -550,8 +660,7 @@ public final class Camera2UE {
                 image = drain;
             }
             if (image != null) {
-                byte[] i420 = packToI420(image);  // respeta rowStride/pixelStride
-                lastI420.set(i420);
+                onYuvImage(image);  // respeta rowStride/pixelStride
             }
         } catch (Throwable t) {
             Log.e(TAG, "yuvListener error", t);
@@ -562,9 +671,30 @@ public final class Camera2UE {
 
     // ======= Utilidades YUV =======
 
-    /** Empaqueta un Image YUV_420_888 a I420 (yuv420p): Y + U + V (cada uno contiguo). */
-    private static byte[] packToI420(Image image) {
+    private void packtoI420Lib(Image image)
+    {
         if (image.getFormat() != ImageFormat.YUV_420_888) throw new IllegalArgumentException("Format must be YUV_420_888");
+        Trace.beginSection("packtoI420Lib");
+
+        int w = image.getCropRect().width(), h = image.getCropRect().height();
+
+        //Log.d(TAG, "wc:" + w +", hc:" + h + " --- w:" +image.getWidth() +", h:"+image.getHeight() );
+        int ok = NativeYuv.androidImageToI420(image, FrameInfo.dy, FrameInfo.du, FrameInfo.dv);
+
+        if(FrameInfo.Orientation > 0)
+        {
+            NativeYuv.I420Rotate(FrameInfo.dy, FrameInfo.du, FrameInfo.dv, FrameInfo.Width, FrameInfo.Height, FrameInfo.dyRot, FrameInfo.duRot, FrameInfo.dvRot, FrameInfo.WidthRot, FrameInfo.HeightRot, FrameInfo.Orientation);
+        }
+
+        Trace.endSection();
+    }
+
+    /** Empaqueta un Image YUV_420_888 a I420 (yuv420p): Y + U + V (cada uno contiguo). */
+    private static byte[] packToI420Into(Image image, byte[] out) {
+        if (image.getFormat() != ImageFormat.YUV_420_888) throw new IllegalArgumentException("Format must be YUV_420_888");
+        Trace.beginSection("packToI420");
+
+
         final int w = image.getWidth();
         final int h = image.getHeight();
         final int ySize = w * h;
@@ -572,7 +702,6 @@ public final class Camera2UE {
         final int cH = h / 2;
         final int uSize = cW * cH;
         final int vSize = uSize;
-        byte[] out = new byte[ySize + uSize + vSize];
 
         Image.Plane[] planes = image.getPlanes();
 
@@ -582,6 +711,7 @@ public final class Camera2UE {
         // Determinar si los cromas estan intercalados o planars segun pixelStride
         // Para I420 final, necesitamos U seguido de V, cada uno contiguo (cW x cH).
         copyChromaToI420(planes[1], planes[2], w, h, out, ySize, ySize + uSize);
+        Trace.endSection();
 
         return out;
     }
@@ -699,4 +829,46 @@ public final class Camera2UE {
             return Long.signum((long) lhs.getWidth()*lhs.getHeight() - (long) rhs.getWidth()*rhs.getHeight());
         }
     }
+
+
+    // --- Asegurar tamaño (llamar cuando llegue el primer frame o cambien W/H) ---
+
+
+    // --- Productor (listener) ---
+    private void onYuvImage(Image image) {
+        int w = image.getWidth(), h = image.getHeight();
+
+
+
+        if (!FrameInfo.reading.get()) {                  // si alguien está leyendo, descarta este frame
+
+            FrameInfo.ensureBufferSize(w, h);
+
+            packtoI420Lib(image);
+            framecounter++;
+            Log.d(TAG, "FrameCounter=" + framecounter);
+        }
+    }
+
+    // --- Consumidor: leer sin copiar (acceso breve) ---
+    @Nullable
+    public FrameUpdateInfo acquireI420() {
+
+        if(FrameInfo.reading.compareAndSet(false, true))
+        {
+            return FrameInfo;
+        }
+        return  null;
+    }
+
+    public void releaseFrameInfo() {
+        FrameInfo.reading.set(false);
+    }
+
+    private void changeCaptureStateStateAndNotify(CaptureState state) {
+        mCaptureState = state;
+        //TODO NOTIFY
+    }
+
+
 }
