@@ -7,7 +7,7 @@
 FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V")
 {
 	GetCameraIdListMethod = GetClassMethod("getCameraIdList", "()[Ljava/lang/String;");
-	InitializeCameraMethod = GetClassMethod("initializeCamera", "(Ljava/lang/String;IIII)Z");
+	InitializeCameraMethod = GetClassMethod("initializeCamera", "(Ljava/lang/String;IIIIIIIIII)Z");
 	TakePhotoMethod = GetClassMethod("takePhoto", "()Z"); 
 	GetLastCapturedImageMethod = GetClassMethod("getLastCapturedImage", "()[B"); 
 	SaveResultMethod = GetClassMethod("saveResult", "()Ljava/lang/String;");
@@ -52,7 +52,7 @@ TArray<FString> FAndroidCamera2Java::GetCameraIdList()
 	return OutIds;
 }
 
-bool FAndroidCamera2Java::InitializeCamera(const FString& CameraId, uint8 AEMode, uint8 AFMode, uint8 AWBMode, uint8 ControlMode)
+bool FAndroidCamera2Java::InitializeCamera(const FString& CameraId, uint8 AEMode, uint8 AFMode, uint8 AWBMode, uint8 ControlMode, uint8 RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS)
 {
 	bool bOK = CallMethod<bool>(
 		InitializeCameraMethod,
@@ -60,7 +60,13 @@ bool FAndroidCamera2Java::InitializeCamera(const FString& CameraId, uint8 AEMode
 		static_cast<jint>(AEMode),
 		static_cast<jint>(AFMode),
 		static_cast<jint>(AWBMode),
-		static_cast<jint>(ControlMode)
+		static_cast<jint>(ControlMode),
+		static_cast<jint>(RotMode),
+		static_cast<jint>(previewWidth),
+		static_cast<jint>(previewHeight),
+		static_cast<jint>(stillCaptureWidth),
+		static_cast<jint>(stillCaptureHeight),
+		static_cast<jint>(targetFPS)
 	);
 
 	return bOK;

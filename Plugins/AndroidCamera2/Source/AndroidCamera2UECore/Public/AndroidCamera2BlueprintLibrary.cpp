@@ -26,7 +26,8 @@ TArray<FString> UAndroidCamera2BlueprintLibrary::GetCameraIdList()
     return CameraList;
 }
 
-bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode)
+bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
+    EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 stillCaptureWidth, int32 stillCaptureHeight, int32 targetFPS)
 {
     if (IsValidAC2J())
     {
@@ -36,7 +37,13 @@ bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, 
             static_cast<uint8>(AEMode),
             static_cast<uint8>(AFMode),
             static_cast<uint8>(AWBMode),
-            static_cast<uint8>(ControlMode)
+            static_cast<uint8>(ControlMode),
+            static_cast<uint8>(RotMode),
+            previewWidth,
+            previewHeight,
+            stillCaptureWidth,
+            stillCaptureHeight,
+            targetFPS
         );
 #endif
     }

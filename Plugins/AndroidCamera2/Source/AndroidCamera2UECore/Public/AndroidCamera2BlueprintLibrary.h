@@ -56,6 +56,17 @@ enum class EAndroidCamera2ControlMode : uint8
 	USE_EXTENDED_SCENE_MODE = 4
 };
 
+UENUM(BlueprintType)
+enum class EAndroidCamera2RotationMode : uint8
+{
+	R0 = 0,
+	R90 = 1,
+	R180 = 2,
+	R270 = 3,
+	RSensor = 4
+};
+
+
 /**
  * Funciones de alto nivel para usar Camera2 desde UE5.
  * - En Android: llaman a la capa JNI (wrapper FJavaAndroidCamera2 en el módulo Android).
@@ -78,7 +89,8 @@ public:
 	 * @return true si se inició la apertura/configuración correctamente.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Android|Camera2", DisplayName="Initialize Camera (by Id)")
-	static bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode);
+	static bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
+		EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 stillCaptureWidth, int32 stillCaptureHeight, int32 targetFPS);
 
 	/**
 	 * Dispara una captura (TEMPLATE_STILL_CAPTURE). El resultado queda en memoria interna de la capa Java.
