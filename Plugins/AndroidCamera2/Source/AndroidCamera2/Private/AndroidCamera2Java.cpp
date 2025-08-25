@@ -4,14 +4,35 @@
 #include "libyuv.h" // o <libyuv/convert.h>, etc. según necesites
 #endif
 
+#if UE_BUILD_SHIPPING
+// always clear any exceptions in SHipping
+#define CHECK_JNI_RESULT(Id) if (Id == 0) { JEnv->ExceptionClear(); }
+#else
+#define CHECK_JNI_RESULT(Id) \
+if (Id == 0) \
+{ \
+	if (bIsOptional) { JEnv->ExceptionClear(); } \
+	else { JEnv->ExceptionDescribe(); checkf(Id != 0, TEXT("Failed to find " #Id)); } \
+}
+#endif
+
+static jfieldID FindField(JNIEnv* JEnv, jclass Class, const ANSICHAR* FieldName, const ANSICHAR* FieldType, bool bIsOptional)
+{
+	jfieldID Field = Class == NULL ? NULL : JEnv->GetFieldID(Class, FieldName, FieldType);
+	CHECK_JNI_RESULT(Field);
+	return Field;
+}
+
 FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V")
 {
 	GetCameraIdListMethod = GetClassMethod("getCameraIdList", "()[Ljava/lang/String;");
 	InitializeCameraMethod = GetClassMethod("initializeCamera", "(Ljava/lang/String;IIIIIIIIII)Z");
 	TakePhotoMethod = GetClassMethod("takePhoto", "()Z"); 
+	getLastFrameInfoMethod = GetClassMethod("getLastFrameInfo", "()Lcom/FonseCode/camera2/Camera2UE$FrameUpdateInfo;");
 	GetLastCapturedImageMethod = GetClassMethod("getLastCapturedImage", "()[B"); 
 	SaveResultMethod = GetClassMethod("saveResult", "()Ljava/lang/String;");
 	ReleaseMethod = GetClassMethod("release", "()V");
+	releaseFrameInfoMethod = GetClassMethod("releaseFrameInfo", "()V");
 }
 
 FAndroidCamera2Java::~FAndroidCamera2Java()
@@ -82,10 +103,41 @@ bool FAndroidCamera2Java::GetLastCapturedImage(TArray<uint8>& OutJpeg) const
 	return false;
 }
 
+bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, int32& previewWidth, int32& previewHeight)
+{
+	// This can return an exception in some cases
+	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
+	jobject Result = CallMethod<jobject>(getLastFrameInfoMethod);
+
+	if (!Result)
+	{
+		return false;
+	}
+	jclass FrameUpdateInfoClass = FAndroidApplication::FindJavaClassGlobalRef("com/FonseCode/camera2/Camera2UE$FrameUpdateInfo");
+	jfieldID FrameUpdateInfo_y = FindField(JEnv, FrameUpdateInfoClass, "y", "Ljava/nio/ByteBuffer;", false);
+	auto buffer = JEnv->GetObjectField(Result, FrameUpdateInfo_y);
+	if (buffer)
+	{
+		yPlaneBuffer = JEnv->GetDirectBufferAddress(buffer);
+		jfieldID FrameUpdateInfo_imgWidth = FindField(JEnv, FrameUpdateInfoClass, "imgWidth", "I", false);
+		jfieldID FrameUpdateInfo_imgHeight = FindField(JEnv, FrameUpdateInfoClass, "imgHeight", "I", false);
+		previewWidth = (int32)JEnv->GetIntField(Result, FrameUpdateInfo_imgWidth);
+		previewHeight = (int32)JEnv->GetIntField(Result, FrameUpdateInfo_imgHeight);
+		return true;
+	}
+
+	return false;
+}
+
 bool FAndroidCamera2Java::SaveResult(FString& OutAbsolutePath)
 {
 	OutAbsolutePath = CallMethod<FString>(SaveResultMethod);
 	return true;
+}
+
+void FAndroidCamera2Java::ReleaseLastPreviewFrameInfo()
+{
+	CallMethod<void>(releaseFrameInfoMethod);
 }
 
 FName FAndroidCamera2Java::GetClassName()

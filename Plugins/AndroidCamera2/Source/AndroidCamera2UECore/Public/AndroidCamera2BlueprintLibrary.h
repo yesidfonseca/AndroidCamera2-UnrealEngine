@@ -5,7 +5,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "AndroidCamera2BlueprintLibrary.generated.h"
 
-
+class UTextureRenderTarget2D;
 // Auto White Balance (AWB) modes — mirror de CameraMetadata.CONTROL_AWB_MODE_*
 UENUM(BlueprintType)
 enum class EAndroidCamera2AWBMode : uint8
@@ -90,7 +90,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Android|Camera2", DisplayName="Initialize Camera (by Id)")
 	static bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
-		EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 stillCaptureWidth, int32 stillCaptureHeight, int32 targetFPS);
+		EAndroidCamera2RotationMode RotMode, int32 previewWidth = 1280, int32 previewHeight = 720, int32 stillCaptureWidth = 1920, int32 stillCaptureHeight =1080, int32 targetFPS =30);
 
 	/**
 	 * Dispara una captura (TEMPLATE_STILL_CAPTURE). El resultado queda en memoria interna de la capa Java.
@@ -120,7 +120,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Android|Camera2", DisplayName="Release Camera2")
 	static void Release();
 
+	/** Libera recursos de Camera2 (cierra sesión/reader/hilos). Idóneo al salir o cambiar de nivel. */
+	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "GetLastFrameInfo Camera2")
+	static void GetLastFrameInfo(UTextureRenderTarget2D* RT);
+
 private:
 	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "AndroidCamera2 IsValid")
 	static bool IsValidAC2J();
+	static void UpdateYPlaneIntoRT(UTextureRenderTarget2D* RT, const void* Buffer, int32 SrcWidth, int32 SrcHeight);
 };

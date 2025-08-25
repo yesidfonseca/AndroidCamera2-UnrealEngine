@@ -6,7 +6,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public final class NativeYuv {
-  static { System.loadLibrary("yuv_jni"); }
 
   public static native int yuv420888ToI420(
       ByteBuffer y, int yStride, int yOffset,

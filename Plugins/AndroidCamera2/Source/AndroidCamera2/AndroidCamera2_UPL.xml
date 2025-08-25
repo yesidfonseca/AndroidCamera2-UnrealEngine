@@ -25,8 +25,9 @@
 
     <proguardAdditions>
         <insert>
--keep class com.FonseCode.camera2.Camera2UE { *; }
-        </insert>
+			-keep class com.FonseCode.camera2.Camera2UE { *; }
+			-keep class com.FonseCode.camera2.NativeYuv { *; }
+		</insert>
     </proguardAdditions>
 
 </root>

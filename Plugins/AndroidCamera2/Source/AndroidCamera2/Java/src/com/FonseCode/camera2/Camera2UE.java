@@ -881,13 +881,13 @@ public final class Camera2UE {
 
             packtoI420Lib(image);
             framecounter++;
-            //Log.d(TAG, "FrameCounter=" + framecounter);
+            Log.d(TAG, "FrameCounter=" + framecounter);
         }
     }
 
     // --- Consumidor: leer sin copiar (acceso breve) ---
     @Nullable
-    public FrameUpdateInfo acquireI420() {
+    public FrameUpdateInfo getLastFrameInfo() {
 
         if(FrameInfo.reading.compareAndSet(false, true))
         {

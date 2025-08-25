@@ -12,8 +12,10 @@ public class AndroidCamera2UECore : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
-            "RenderCore"
+            "RenderCore",
+            "RHI"
         });
+
 
         if (Target.Platform == UnrealTargetPlatform.Android)
         {
