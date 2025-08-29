@@ -1,5 +1,6 @@
 #include "IAndroidCamera2Module.h"
 
+
 #define LOCTEXT_NAMESPACE "FAndroidCamera2Module"
 
 class FAndroidCamera2Module
@@ -7,7 +8,7 @@ class FAndroidCamera2Module
 {
 	virtual void StartupModule() override
 	{
-		// Aquí va la inicialización del módulo
+		
 	}
 
 	virtual void ShutdownModule() override

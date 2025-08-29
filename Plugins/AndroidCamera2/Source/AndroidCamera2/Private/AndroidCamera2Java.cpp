@@ -103,7 +103,7 @@ bool FAndroidCamera2Java::GetLastCapturedImage(TArray<uint8>& OutJpeg) const
 	return false;
 }
 
-bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, int32& previewWidth, int32& previewHeight)
+bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32& previewWidth, int32& previewHeight)
 {
 	// This can return an exception in some cases
 	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
@@ -115,10 +115,16 @@ bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, int32& pr
 	}
 	jclass FrameUpdateInfoClass = FAndroidApplication::FindJavaClassGlobalRef("com/FonseCode/camera2/Camera2UE$FrameUpdateInfo");
 	jfieldID FrameUpdateInfo_y = FindField(JEnv, FrameUpdateInfoClass, "y", "Ljava/nio/ByteBuffer;", false);
-	auto buffer = JEnv->GetObjectField(Result, FrameUpdateInfo_y);
-	if (buffer)
+	jfieldID FrameUpdateInfo_u = FindField(JEnv, FrameUpdateInfoClass, "u", "Ljava/nio/ByteBuffer;", false);
+	jfieldID FrameUpdateInfo_v = FindField(JEnv, FrameUpdateInfoClass, "v", "Ljava/nio/ByteBuffer;", false);
+	auto ybuffer = JEnv->GetObjectField(Result, FrameUpdateInfo_y);
+	auto ubuffer = JEnv->GetObjectField(Result, FrameUpdateInfo_u);
+	auto vbuffer = JEnv->GetObjectField(Result, FrameUpdateInfo_v);
+	if (ybuffer && ubuffer && vbuffer)
 	{
-		yPlaneBuffer = JEnv->GetDirectBufferAddress(buffer);
+		yPlaneBuffer = JEnv->GetDirectBufferAddress(ybuffer);
+		uPlaneBuffer = JEnv->GetDirectBufferAddress(ubuffer);
+		vPlaneBuffer = JEnv->GetDirectBufferAddress(vbuffer);
 		jfieldID FrameUpdateInfo_imgWidth = FindField(JEnv, FrameUpdateInfoClass, "imgWidth", "I", false);
 		jfieldID FrameUpdateInfo_imgHeight = FindField(JEnv, FrameUpdateInfoClass, "imgHeight", "I", false);
 		previewWidth = (int32)JEnv->GetIntField(Result, FrameUpdateInfo_imgWidth);

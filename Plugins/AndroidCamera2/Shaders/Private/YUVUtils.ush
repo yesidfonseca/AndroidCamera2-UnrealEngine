@@ -1,0 +1,86 @@
+// YuvUtils.ush  —  Conversión I420 (Y, U, V) -> RGB con 6 variantes
+// Mode: 0=601_L, 1=601_F, 2=709_L, 3=709_F, 4=2020_L, 5=2020_F
+//Sampler to use with pre computed map
+SamplerState BilinearClampedSampler;
+SamplerState PointClampedSampler;
+
+float3 YuvToRgbByMode(float y, float u, float v, int mode)
+{
+    // y,u,v llegan normalizados 0..1 de los samples (R8 lineal)
+    float Yf, Cb, Cr;
+    float3 rgb;
+
+    [branch]
+    switch (mode)
+    {
+    // BT.601 LIMITED
+    case 0:
+        Yf = (y - (16.0/255.0)) * (255.0/219.0);
+        Cb = (u - 0.5) * (255.0/224.0);
+        Cr = (v - 0.5) * (255.0/224.0);
+        rgb.r = Yf + (1.596   * Cr);
+        rgb.g = Yf - (0.391   * Cb) - (0.813   * Cr);
+        rgb.b = Yf + (2.018   * Cb);
+        break;
+
+    // BT.601 FULL
+    case 1:
+        Yf = y; Cb = u - 0.5; Cr = v - 0.5;
+        rgb.r = Yf + 1.40200 * Cr;
+        rgb.g = Yf - 0.34414 * Cb - 0.71414 * Cr;
+        rgb.b = Yf + 1.77200 * Cb;
+        break;
+
+    // BT.709 LIMITED
+    case 2:
+        Yf = (y - (16.0/255.0)) * (255.0/219.0);
+        Cb = (u - 0.5) * (255.0/224.0);
+        Cr = (v - 0.5) * (255.0/224.0);
+        rgb.r = Yf + 1.793   * Cr;
+        rgb.g = Yf - 0.213   * Cb - 0.533   * Cr;
+        rgb.b = Yf + 2.112   * Cb;
+        break;
+
+    // BT.709 FULL
+    case 3:
+        Yf = y; Cb = u - 0.5; Cr = v - 0.5;
+        rgb.r = Yf + 1.5748  * Cr;
+        rgb.g = Yf - 0.18732 * Cb - 0.46812 * Cr;
+        rgb.b = Yf + 1.8556  * Cb;
+        break;
+
+    // BT.2020 LIMITED
+    case 4:
+        Yf = (y - (16.0/255.0)) * (255.0/219.0);
+        Cb = (u - 0.5) * (255.0/224.0);
+        Cr = (v - 0.5) * (255.0/224.0);
+        rgb.r = Yf + 1.67867 * Cr;
+        rgb.g = Yf - 0.187326* Cb - 0.65042 * Cr;
+        rgb.b = Yf + 2.14177 * Cb;
+        break;
+
+    // BT.2020 FULL  (default)
+    default:
+    case 5:
+        Yf = y; Cb = u - 0.5; Cr = v - 0.5;
+        rgb.r = Yf + 1.4746  * Cr;
+        rgb.g = Yf - 0.164553* Cb - 0.571353* Cr;
+        rgb.b = Yf + 1.8814  * Cb;
+        break;
+    }
+
+    return saturate(rgb);
+}
+
+// Función de muestreo I420: Y en full-res, U/V en half-res
+float3 SampleI420RGB(
+    Texture2D TexY, 
+    Texture2D TexU,
+    Texture2D TexV, 
+    float2 UV,   int Mode)
+{
+    const float y = Texture2DSample(TexY, PointClampedSampler, UV).r;
+    const float u = Texture2DSample(TexU, BilinearClampedSampler, UV).r;
+    const float v = Texture2DSample(TexV, BilinearClampedSampler, UV).r;
+    return YuvToRgbByMode(y, u, v, Mode);
+}

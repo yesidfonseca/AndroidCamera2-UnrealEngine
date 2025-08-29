@@ -13,7 +13,9 @@ public class AndroidCamera2UECore : ModuleRules
             "CoreUObject",
             "Engine",
             "RenderCore",
-            "RHI"
+            "RHI",
+            "Projects",   // IPluginManager
+			"RenderCore"  // AddShaderSourceDirectoryMapping
         });
 
 

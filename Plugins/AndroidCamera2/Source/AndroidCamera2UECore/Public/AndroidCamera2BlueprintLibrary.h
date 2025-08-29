@@ -122,10 +122,11 @@ public:
 
 	/** Libera recursos de Camera2 (cierra sesión/reader/hilos). Idóneo al salir o cambiar de nivel. */
 	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "GetLastFrameInfo Camera2")
-	static void GetLastFrameInfo(UTextureRenderTarget2D* RT);
+	static void GetLastFrameInfo(UTextureRenderTarget2D* RTY, UTextureRenderTarget2D* RTU, UTextureRenderTarget2D* RTV );
 
 private:
 	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "AndroidCamera2 IsValid")
 	static bool IsValidAC2J();
 	static void UpdateYPlaneIntoRT(UTextureRenderTarget2D* RT, const void* Buffer, int32 SrcWidth, int32 SrcHeight);
+	static void UpdateI420_UV_ToRTs_G8(UTextureRenderTarget2D* RT_U, UTextureRenderTarget2D* RT_V, const void* UPlane, const void* VPlane, int32 FullWidth, int32 FullHeight);
 };

@@ -14,7 +14,7 @@ public:
 	bool InitializeCamera(const FString& CameraId, uint8 AEMode, uint8 AFMode, uint8 AWBMode, uint8 ControMode, uint8 RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS);
     bool TakePhoto() ;
     bool GetLastCapturedImage(TArray<uint8>& OutJpeg) const;
-	bool GetLastPreviewFrameInfo(void*& yPlaneBuffer, int32 & previewWidth, int32 & previewHeight) ;
+	bool GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32 & previewWidth, int32 & previewHeight) ;
     bool SaveResult(FString& OutAbsolutePath);
 	void ReleaseLastPreviewFrameInfo();
 

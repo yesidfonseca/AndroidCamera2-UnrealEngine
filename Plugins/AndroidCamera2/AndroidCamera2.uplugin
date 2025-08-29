@@ -18,5 +18,8 @@
       "LoadingPhase": "PostEngineInit",
       "PlatformAllowList": [ "Android" ]
     }
-  ]
+  ],
+  "ShaderDirectoryMappings": {
+  "/AndroidCamera2": "Shaders"
+}
 }

@@ -105,17 +105,21 @@ void UAndroidCamera2BlueprintLibrary::Release()
     // No-op for non-Android platforms
 }
 
-void UAndroidCamera2BlueprintLibrary::GetLastFrameInfo(UTextureRenderTarget2D* RT)
+void UAndroidCamera2BlueprintLibrary::GetLastFrameInfo(UTextureRenderTarget2D* RT, UTextureRenderTarget2D* RTU, UTextureRenderTarget2D* RTV)
 {
     if (IsValidAC2J())
     {
-        void* Buffer = nullptr;
+        void* yBuffer = nullptr;
+        void* uBuffer = nullptr;
+        void* vBuffer = nullptr;
         int32 imgWidth = 0;
         int32 imgHeight = 0;
 #if PLATFORM_ANDROID
-       AndroidCamera2Java->GetLastPreviewFrameInfo(Buffer,imgWidth,imgHeight);
+       AndroidCamera2Java->GetLastPreviewFrameInfo(yBuffer, uBuffer, vBuffer, imgWidth,imgHeight);
 #endif
-       UpdateYPlaneIntoRT(RT, Buffer, imgWidth, imgHeight);
+       UpdateYPlaneIntoRT(RT, yBuffer, imgWidth, imgHeight);
+       UpdateI420_UV_ToRTs_G8(RTU, RTV, uBuffer, vBuffer, imgWidth, imgHeight);
+
 #if PLATFORM_ANDROID
        AndroidCamera2Java->ReleaseLastPreviewFrameInfo();
 #endif
@@ -241,6 +245,110 @@ void UAndroidCamera2BlueprintLibrary::UpdateYPlaneIntoRT(UTextureRenderTarget2D*
             }
 
             RHIUnlockTexture2D(RHITexture2D, /*MipIndex*/ 0, false, true);
+        }
+        );
+}
+
+// Copia U y V (i420) a dos RTs PF_G8 de (W/2 x H/2).
+// - RT_U, RT_V: RenderTargets destino (texturas de un canal, 8 bits, sin sRGB).
+// - UPlane, VPlane: punteros a los planos U y V (tightly packed).
+// - FullWidth, FullHeight: tamaño del plano Y (i.e., resolución "full").
+void UAndroidCamera2BlueprintLibrary::UpdateI420_UV_ToRTs_G8(
+    UTextureRenderTarget2D* RT_U,
+    UTextureRenderTarget2D* RT_V,
+    const void* UPlane,
+    const void* VPlane,
+    int32 FullWidth,
+    int32 FullHeight
+)
+{
+    check(RT_U);
+    check(RT_V)
+    check(IsInGameThread());
+    if (!RT_U || !RT_V || !UPlane || !VPlane) { return; }
+    if (FullWidth <= 0 || FullHeight <= 0) { return; }
+
+    // i420 requiere dimensiones pares
+    if ((FullWidth & 1) || (FullHeight & 1)) { return; }
+
+    const int32 UVW = FullWidth / 2;
+    const int32 UVH = FullHeight / 2;
+    const int32 PlaneBytes = UVW * UVH; // 1 byte por píxel, sin stride
+
+    // Asegurar formato/tamaño de ambos RTs
+    auto EnsureRT_G8 = [](UTextureRenderTarget2D* RT, int32 W, int32 H)
+        {
+            const bool bFormatOK = (RT->GetFormat() == PF_G8);
+            const bool bSizeOK = (RT->SizeX == W && RT->SizeY == H);
+            if (!bFormatOK || !bSizeOK)
+            {
+                RT->InitCustomFormat(W, H, PF_G8, /*bForceLinearGamma*/ false);
+            }
+        };
+
+    EnsureRT_G8(RT_U, UVW, UVH);
+    EnsureRT_G8(RT_V, UVW, UVH);
+    
+
+    // Staging: copiamos planos completos (tightly packed)
+    TArray<uint8> StagingU; StagingU.SetNumUninitialized(PlaneBytes);
+    TArray<uint8> StagingV; StagingV.SetNumUninitialized(PlaneBytes);
+
+    FMemory::Memcpy(StagingU.GetData(), UPlane, PlaneBytes);
+    FMemory::Memcpy(StagingV.GetData(), VPlane, PlaneBytes);
+
+    // Recursos de RT
+    FTextureRenderTargetResource* RTRes_U = RT_U->GameThread_GetRenderTargetResource();
+    FTextureRenderTargetResource* RTRes_V = RT_V->GameThread_GetRenderTargetResource();
+    if (!RTRes_U || !RTRes_V) { return; }
+
+    // Subida al GPU en Render Thread
+    ENQUEUE_RENDER_COMMAND(CopyI420_UV_ToRTs)(
+        [RTRes_U, RTRes_V,
+        StagingU = MoveTemp(StagingU),
+        StagingV = MoveTemp(StagingV),
+        UVW, UVH](FRHICommandListImmediate& RHICmdList)
+        {
+            auto UploadPlane = [&RHICmdList](FTextureRenderTargetResource* RTRes, const uint8* Src, int32 W, int32 H)
+                {
+                    FRHITexture* RHITexture = RTRes->GetRenderTargetTexture();
+                    if (!RHITexture) { return; }
+                    FRHITexture2D* RHITexture2D = RHITexture->GetTexture2D();
+                    if (!RHITexture2D) { return; }
+
+                    uint32 DestStride = 0;
+                    void* DestPtr = RHILockTexture2D(
+                        RHITexture2D,
+                        /*MipIndex*/ 0,
+                        RLM_WriteOnly,
+                        DestStride,
+                        /*bLockWithinMiptail*/ false
+                    );
+                    if (!DestPtr) { return; }
+
+                    uint8* Dst = static_cast<uint8*>(DestPtr);
+                    const uint32 RowBytes = static_cast<uint32>(W); // 1 byte/px
+
+                    // Copia por filas (el destino puede tener stride mayor)
+                    for (int32 y = 0; y < H; ++y)
+                    {
+                        FMemory::Memcpy(
+                            Dst + y * DestStride,
+                            Src + y * RowBytes,
+                            RowBytes
+                        );
+                    }
+
+                    RHICmdList.UnlockTexture2D(
+                        RHITexture2D,
+                        /*MipIndex*/ 0,
+                        /*bLockWithinMiptail*/ false,
+                        /*bFlushRHIThread*/ true
+                    );
+                };
+
+            UploadPlane(RTRes_U, StagingU.GetData(), UVW, UVH);
+            UploadPlane(RTRes_V, StagingV.GetData(), UVW, UVH);
         }
         );
 }
