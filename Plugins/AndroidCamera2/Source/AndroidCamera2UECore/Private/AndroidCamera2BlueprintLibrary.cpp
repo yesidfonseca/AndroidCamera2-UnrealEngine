@@ -2,11 +2,6 @@
 #include "Kismet/GameplayStatics.h" 
 #include "AndroidCamera2Subsystem.h"
 
-#if PLATFORM_ANDROID
-#include "AndroidCamera2Java.h"
-
-static TSharedPtr<FAndroidCamera2Java, ESPMode::ThreadSafe> AndroidCamera2Java;
-#endif
 
 
 

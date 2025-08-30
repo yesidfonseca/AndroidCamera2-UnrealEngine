@@ -35,9 +35,11 @@ public:
     { return NSLOCTEXT("AndroidCamera2", "SettingsName", "Android Camera2"); }
     virtual FText GetSectionDescription() const override
     { return NSLOCTEXT("AndroidCamera2", "SettingsDesc", "Default output and color settings for the Android Camera2 plugin."); }
+
+
+
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-
-
 
     UPROPERTY(config, EditAnywhere, Category="Output|AndroidCamera2OutputDataSettings", meta=(DisplayName="Y Plane (Luma)"))
     FAndroidCamera2OutputDataSettings RenderTargetDataYPlane = FAndroidCamera2OutputDataSettings();

@@ -1,4 +1,4 @@
-
+#pragma once
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Tickable.h" // FTickableGameObject
