@@ -1,8 +1,7 @@
 // YuvUtils.ush  —  Conversión I420 (Y, U, V) -> RGB con 6 variantes
 // Mode: 0=601_L, 1=601_F, 2=709_L, 3=709_F, 4=2020_L, 5=2020_F
 //Sampler to use with pre computed map
-SamplerState BilinearClampedSampler;
-SamplerState PointClampedSampler;
+
 
 float3 YuvToRgbByMode(float y, float u, float v, int mode)
 {
@@ -72,15 +71,3 @@ float3 YuvToRgbByMode(float y, float u, float v, int mode)
     return saturate(rgb);
 }
 
-// Función de muestreo I420: Y en full-res, U/V en half-res
-float3 SampleI420RGB(
-    Texture2D TexY, 
-    Texture2D TexU,
-    Texture2D TexV, 
-    float2 UV,   int Mode)
-{
-    const float y = Texture2DSample(TexY, PointClampedSampler, UV).r;
-    const float u = Texture2DSample(TexU, BilinearClampedSampler, UV).r;
-    const float v = Texture2DSample(TexV, BilinearClampedSampler, UV).r;
-    return YuvToRgbByMode(y, u, v, Mode);
-}

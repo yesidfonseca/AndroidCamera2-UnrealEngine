@@ -19,7 +19,6 @@
       "PlatformAllowList": [ "Android" ]
     }
   ],
-  "ShaderDirectoryMappings": {
-  "/AndroidCamera2": "Shaders"
-}
+  "ShaderDirectoryMappings": {  "/AndroidCamera2": "Shaders"},
+  "CanContainContent": true
 }

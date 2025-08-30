@@ -33,6 +33,8 @@ FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V
 	SaveResultMethod = GetClassMethod("saveResult", "()Ljava/lang/String;");
 	ReleaseMethod = GetClassMethod("release", "()V");
 	releaseFrameInfoMethod = GetClassMethod("releaseFrameInfo", "()V");
+	getInitializeCameraStateMethod = GetClassMethod("getInitializeCameraState", "()Z");
+	getLastFrameTimeStampMethod = GetClassMethod("getLastFrameTimeStamp", "()J");
 }
 
 FAndroidCamera2Java::~FAndroidCamera2Java()
@@ -103,7 +105,7 @@ bool FAndroidCamera2Java::GetLastCapturedImage(TArray<uint8>& OutJpeg) const
 	return false;
 }
 
-bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32& previewWidth, int32& previewHeight)
+bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32& previewWidth, int32& previewHeight, int64& timeStamp)
 {
 	// This can return an exception in some cases
 	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
@@ -127,8 +129,10 @@ bool FAndroidCamera2Java::GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uP
 		vPlaneBuffer = JEnv->GetDirectBufferAddress(vbuffer);
 		jfieldID FrameUpdateInfo_imgWidth = FindField(JEnv, FrameUpdateInfoClass, "imgWidth", "I", false);
 		jfieldID FrameUpdateInfo_imgHeight = FindField(JEnv, FrameUpdateInfoClass, "imgHeight", "I", false);
+		jfieldID FrameUpdateInfo_timeStamp = FindField(JEnv, FrameUpdateInfoClass, "timeStamp", "J", false);
 		previewWidth = (int32)JEnv->GetIntField(Result, FrameUpdateInfo_imgWidth);
 		previewHeight = (int32)JEnv->GetIntField(Result, FrameUpdateInfo_imgHeight);
+		timeStamp = (int64)JEnv->GetLongField(Result, FrameUpdateInfo_timeStamp);
 		return true;
 	}
 
@@ -150,3 +154,19 @@ FName FAndroidCamera2Java::GetClassName()
 {
 	return FName("com/FonseCode/camera2/Camera2UE");
 }
+
+void FAndroidCamera2Java::Release()
+{
+	CallMethod<void>(ReleaseMethod);
+}
+
+bool FAndroidCamera2Java::GetInitilizedCamaraState()
+{
+	return CallMethod<bool>(getInitializeCameraStateMethod);
+}
+
+int64 FAndroidCamera2Java::GetLastFrameTimeStamp()
+{
+	return CallMethod<int64>(getLastFrameTimeStampMethod);
+}
+

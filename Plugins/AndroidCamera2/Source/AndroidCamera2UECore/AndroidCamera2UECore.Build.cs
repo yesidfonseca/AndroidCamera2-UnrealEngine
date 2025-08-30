@@ -15,7 +15,8 @@ public class AndroidCamera2UECore : ModuleRules
             "RenderCore",
             "RHI",
             "Projects",   // IPluginManager
-			"RenderCore"  // AddShaderSourceDirectoryMapping
+			"RenderCore",  // AddShaderSourceDirectoryMapping
+            "DeveloperSettings"
         });
 
 

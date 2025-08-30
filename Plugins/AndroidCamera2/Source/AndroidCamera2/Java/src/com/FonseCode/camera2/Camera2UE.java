@@ -43,28 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class Camera2UE {
 
-    private final class FpsMeter {
-        private long winStartNs = -1, lastTs = -1;
-        private int  winCount = 0;
-        volatile double fps = 0.0;     // último cálculo (entrega efectiva)
-        private double emaNs = -1;     // suavizado exponencial de dt
-
-        void onFrameTs(long ts) {
-            if (winStartNs < 0) winStartNs = ts;
-            if (lastTs > 0) {
-                long dt = ts - lastTs;               // ns entre frames entregados
-                if (dt > 0) emaNs = (emaNs < 0) ? dt : (0.9*emaNs + 0.1*dt);
-            }
-            lastTs = ts;
-            if (++winCount >= 15 || ts - winStartNs >= 1_000_000_000L) {
-                fps = (winCount - 1) * 1e9 / (ts - winStartNs);
-                winStartNs = ts;
-                winCount = 1;
-            }
-            Log.d("FpsMeter", "FPS:" + fps);
-        }
-    }
-
+    
     public class FrameUpdateInfo {
         private ByteBuffer dy, du, dv ;
         private int Width, Height;
@@ -75,6 +54,7 @@ public final class Camera2UE {
         public ByteBuffer y, v, u;
         public int imgWidth, imgHeight;
         public int Orientation; //0->0 degress, 1->90 degress, 2->180 degress, 3->270 degress
+        public long timeStamp;
         private void setOutputDataAndPointers()
         {
             if(Orientation==0) {
@@ -143,7 +123,6 @@ public final class Camera2UE {
 
     private Context appContext;
 
-    private final FpsMeter fpsMeter = new FpsMeter();
 
     private long framecounter = 0;
     FrameUpdateInfo FrameInfo = new FrameUpdateInfo();
@@ -289,7 +268,6 @@ public final class Camera2UE {
 
             // Abrir camara (asincrono)
             openCamera();
-            initialized = true;
             return true;
 
         } catch (CameraAccessException e) {
@@ -299,6 +277,16 @@ public final class Camera2UE {
             Log.e(TAG, "initializeCamera: error " + t.getMessage(), t);
             return false;
         }
+    }
+
+    public synchronized boolean getInitializeCameraState()
+    {
+        return initialized;
+    }
+
+    public synchronized long getLastFrameTimeStamp()
+    {
+        return FrameInfo.timeStamp;
     }
 
     /** Empieza/rehace el repeating de preview hacia el ImageReader YUV (necesario para 3A estable). */
@@ -572,18 +560,20 @@ public final class Camera2UE {
         cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
             @Override public void onOpened(CameraDevice camera) {
                 cameraDevice = camera;
-                createCaptureSession();
+                createCaptureSession();       
                 Log.d(TAG, "openCamera: todo bien");
             }
             @Override public void onDisconnected(CameraDevice camera) {
                 Log.w(TAG, "Camara desconectada");
                 camera.close();
                 cameraDevice = null;
+                initialized = false;
             }
             @Override public void onError(CameraDevice camera, int error) {
                 Log.e(TAG, "Error al abrir camara: " + error);
                 camera.close();
                 cameraDevice = null;
+                initialized = false;
             }
         }, getBackgroundHandler());
     }
@@ -603,6 +593,7 @@ public final class Camera2UE {
                         }
                         @Override public void onConfigureFailed(CameraCaptureSession session) {
                             Log.e(TAG, "Fallo configuracion de CaptureSession");
+                            initialized = false;
                         }
                     },
                     getBackgroundHandler()
@@ -633,6 +624,7 @@ public final class Camera2UE {
             }
             camThread = null; bgHandler = null;
         }
+        initialized = false;
     }
 
     private static File createTimestampedFile(Context ctx, String ext) {
@@ -697,7 +689,6 @@ public final class Camera2UE {
                 image = drain;
             }
             if (image != null) {
-                fpsMeter.onFrameTs(image.getTimestamp());
                 onYuvImage(image);  // respeta rowStride/pixelStride
             }
         } catch (Throwable t) {
@@ -724,109 +715,11 @@ public final class Camera2UE {
             NativeYuv.I420Rotate(FrameInfo.dy, FrameInfo.du, FrameInfo.dv, FrameInfo.Width, FrameInfo.Height, FrameInfo.dyRot, FrameInfo.duRot, FrameInfo.dvRot, FrameInfo.WidthRot, FrameInfo.HeightRot, FrameInfo.Orientation);
         }
 
+        FrameInfo.timeStamp = image.getTimestamp();
+
         Trace.endSection();
     }
 
-    /** Empaqueta un Image YUV_420_888 a I420 (yuv420p): Y + U + V (cada uno contiguo). */
-    private static byte[] packToI420Into(Image image, byte[] out) {
-        if (image.getFormat() != ImageFormat.YUV_420_888) throw new IllegalArgumentException("Format must be YUV_420_888");
-        Trace.beginSection("packToI420");
-
-
-        final int w = image.getWidth();
-        final int h = image.getHeight();
-        final int ySize = w * h;
-        final int cW = w / 2;
-        final int cH = h / 2;
-        final int uSize = cW * cH;
-        final int vSize = uSize;
-
-        Image.Plane[] planes = image.getPlanes();
-
-        // Copiar Y (respetando rowStride)
-        copyPlaneToBuffer(planes[0], w, h, out, 0);
-
-        // Determinar si los cromas estan intercalados o planars segun pixelStride
-        // Para I420 final, necesitamos U seguido de V, cada uno contiguo (cW x cH).
-        copyChromaToI420(planes[1], planes[2], w, h, out, ySize, ySize + uSize);
-        Trace.endSection();
-
-        return out;
-    }
-
-    /** Copia plano (pixelStride==1 esperado) fila a fila; si pixelStride>1, hace muestreo cada pixelStride. */
-    private static void copyPlaneToBuffer(Image.Plane plane, int width, int height, byte[] dst, int dstOffset) {
-        ByteBuffer buf = plane.getBuffer();
-        int rowStride = plane.getRowStride();
-        int pixelStride = plane.getPixelStride();
-        int dstPos = dstOffset;
-
-        if (pixelStride == 1 && rowStride == width) {
-            // bloque contiguo
-            buf.get(dst, dstPos, width * height);
-            return;
-        }
-
-        byte[] row = new byte[rowStride];
-        for (int y = 0; y < height; y++) {
-            buf.position(y * rowStride);
-            int toRead = Math.min(rowStride, buf.remaining());
-            buf.get(row, 0, toRead);
-            if (pixelStride == 1) {
-                System.arraycopy(row, 0, dst, dstPos, width);
-                dstPos += width;
-            } else {
-                // muestrea cada pixelStride
-                for (int x = 0; x < width; x++) {
-                    dst[dstPos++] = row[x * pixelStride];
-                }
-            }
-        }
-    }
-
-    /** Copia U y V (submuestreados) a dos bloques contiguos I420 (U luego V), respetando row/pixel stride. */
-    private static void copyChromaToI420(Image.Plane uPlane, Image.Plane vPlane, int width, int height, byte[] dst, int uDstOffset, int vDstOffset) {
-        int cW = width / 2;
-        int cH = height / 2;
-
-        // Si pixelStride == 1 en ambos -> planar simple
-        if (uPlane.getPixelStride() == 1 && vPlane.getPixelStride() == 1) {
-            copyPlaneToBuffer(uPlane, cW, cH, dst, uDstOffset);
-            copyPlaneToBuffer(vPlane, cW, cH, dst, vDstOffset);
-            return;
-        }
-
-        // Semi-planar (NV12/NV21 representados via dos planos con pixelStride 2)
-        // Leemos cada plano muestreando cada pixelStride y respetando rowStride.
-        ByteBuffer ub = uPlane.getBuffer();
-        ByteBuffer vb = vPlane.getBuffer();
-
-        int uRowStride = uPlane.getRowStride();
-        int vRowStride = vPlane.getRowStride();
-        int uPix = uPlane.getPixelStride();
-        int vPix = vPlane.getPixelStride();
-
-        byte[] uRow = new byte[uRowStride];
-        byte[] vRow = new byte[vRowStride];
-
-        int uPos = uDstOffset;
-        int vPos = vDstOffset;
-
-        for (int y = 0; y < cH; y++) {
-            ub.position(y * uRowStride);
-            vb.position(y * vRowStride);
-            ub.get(uRow, 0, Math.min(uRowStride, ub.remaining()));
-            vb.get(vRow, 0, Math.min(vRowStride, vb.remaining()));
-            for (int x = 0; x < cW; x++) {
-                dst[uPos++] = uRow[x * uPix];
-                dst[vPos++] = vRow[x * vPix];
-            }
-        }
-    }
-
-    private String makeYuvName() {
-        return "preview_" + yuvSize.getWidth() + "x" + yuvSize.getHeight() + "_i420.yuv";
-    }
 
     private static boolean contains(int[] arr, int val) {
         if (arr == null) return false;
@@ -881,7 +774,9 @@ public final class Camera2UE {
 
             packtoI420Lib(image);
             framecounter++;
-            Log.d(TAG, "FrameCounter=" + framecounter);
+            
+            initialized = true;
+            //Log.d(TAG, "FrameCounter=" + framecounter);
         }
     }
 
