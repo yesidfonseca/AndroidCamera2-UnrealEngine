@@ -24,27 +24,10 @@ bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, 
     return false;
 }
 
-bool UAndroidCamera2BlueprintLibrary::TakePhoto()
-{
-#if PLATFORM_ANDROID
-        return AndroidCamera2Java->TakePhoto();
-#endif
-   
 
-    return false;
-}
 
-bool UAndroidCamera2BlueprintLibrary::GetLastCapturedImage(TArray<uint8>& OutJpegBytes)
-{
-    return false;
-}
 
-bool UAndroidCamera2BlueprintLibrary::SaveResult(FString& OutAbsolutePath)
-{
-    
 
-    return false;
-}
 
 TArray<FString> UAndroidCamera2BlueprintLibrary::GetCameraIdList()
 {

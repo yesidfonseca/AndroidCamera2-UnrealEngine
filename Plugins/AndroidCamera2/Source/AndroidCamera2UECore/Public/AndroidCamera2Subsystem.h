@@ -10,6 +10,7 @@
 
 class UTextureRenderTarget2D;
 
+// Auto White Balance (AWB) modes — mirror de CameraMetadata.CONTROL_AWB_MODE_*
 UENUM(BlueprintType)
 enum class EAndroidCamera2AWBMode : uint8
 {
@@ -115,8 +116,6 @@ private:
 
     bool IsValidAC2J();
 
-	
-
 	void UpdateRenderTextures();
 
 	UPROPERTY() UTextureRenderTarget2D* y_RT2D = nullptr;
@@ -133,5 +132,6 @@ private:
 	TArray<uint8> VBuffer;
 	int32 CurrentWidth = 0;
 	int32 CurrentHeight = 0;
+
 	UTextureRenderTarget2D* ValidateRenderTarget(TSoftObjectPtr<UTextureRenderTarget2D> RenderTarget2D);
 };
