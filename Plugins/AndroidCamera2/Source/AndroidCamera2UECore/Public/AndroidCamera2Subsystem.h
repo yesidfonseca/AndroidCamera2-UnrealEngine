@@ -3,12 +3,33 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Tickable.h" // FTickableGameObject
 
+
 #if PLATFORM_ANDROID
-#include "AndroidCamera2Java.h"
+class FAndroidCamera2Java;
 #endif
+
 #include "AndroidCamera2Subsystem.generated.h"
 
 class UTextureRenderTarget2D;
+
+UENUM(BlueprintType)
+enum class EAndroidCamera2RenderingState : uint8
+{
+	OFF_AUTO,
+	OFF_MANUAL,
+	ON_AUTO,
+	ON_MANUAL
+};
+
+UENUM(BlueprintType)
+enum class EAndroidCamera2State : uint8
+{
+	OFF,
+	WAITING_INIT,
+	INITIALIZED,
+	FAIL_INIT, 
+	PAUSED
+};
 
 // Auto White Balance (AWB) modes — mirror de CameraMetadata.CONTROL_AWB_MODE_*
 UENUM(BlueprintType)
@@ -100,15 +121,28 @@ public:
 
 	void GetLastFrameInfo();
 
+	void UpdateRenderTextures();
+
+	bool GetLuminanceBufferPtr(const uint8*& OutPtr, int32& OutWidth, int32& OutHeight, int64& OutTimestamp) const;
+
+	bool GetCbChromaBufferPtr(const uint8*& OutPtr, int32& OutWidth, int32& OutHeight, int64& OutTimestamp) const;
+
+	bool GetCrChromaBufferPtr(const uint8*& OutPtr, int32& OutWidth, int32& OutHeight, int64& OutTimestamp) const;
+
+	void SetCameraTimeout(float NewTimeout);
+
+	EAndroidCamera2State GetCameraState() const { return CameraState; }
+
+	void PauseCamera();
+
+	void ResumeCamera();
+
+	void StopCamera();
+
 private:
     bool bAutoUpdateRenderTargets = false;
 	int64 LastFrameTimestamp = 0;
-	//Camera State: 
-	// 0=Not initialized, 
-	// 1=Initialized, 
-	// 2=Error during initialization
-	// 3=Waiting for Initialization
-	int32 CameraState = 0;
+	EAndroidCamera2State CameraState = EAndroidCamera2State::OFF;
 
 #if PLATFORM_ANDROID
     TSharedPtr<FAndroidCamera2Java, ESPMode::ThreadSafe> AndroidCamera2Java;
@@ -116,7 +150,8 @@ private:
 
     bool IsValidAC2J();
 
-	void UpdateRenderTextures();
+	float CameraTimeout = 5.0f; // seconds
+	float CameraTimeLeftAfterInitialization = 5.f;
 
 	UPROPERTY() UTextureRenderTarget2D* y_RT2D = nullptr;
 	UPROPERTY() UTextureRenderTarget2D* u_RT2D = nullptr;
@@ -134,4 +169,5 @@ private:
 	int32 CurrentHeight = 0;
 
 	UTextureRenderTarget2D* ValidateRenderTarget(TSoftObjectPtr<UTextureRenderTarget2D> RenderTarget2D);
+
 };

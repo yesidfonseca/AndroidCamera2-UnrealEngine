@@ -19,9 +19,38 @@ bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, 
     return false;
 }
 
+void UAndroidCamera2BlueprintLibrary::ResumeCapturing()
+{
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->ResumeCamera();
+        }
+    }
+}
 
+void UAndroidCamera2BlueprintLibrary::PauseCapturing()
+{
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->PauseCamera();
+        }
+    }
+}
 
-
+void UAndroidCamera2BlueprintLibrary::StopCapturing()
+{
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->StopCamera();
+        }
+    }
+}
 
 
 TArray<FString> UAndroidCamera2BlueprintLibrary::GetCameraIdList()

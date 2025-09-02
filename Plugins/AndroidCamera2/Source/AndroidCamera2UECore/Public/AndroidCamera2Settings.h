@@ -53,6 +53,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Output|AndroidCamera2OutputDataSettings", meta = (DisplayName = "Auto Update Render Targets"))
 	bool bAutoUpdateRenderTargets = true;
 
+    UPROPERTY(config, EditAnywhere, Category = "Output|AndroidCamera2OutputDataSettings", meta = (DisplayName = "Time Out in seconds of camera after initizialization"))
+    float CameraTimeOut = 5.f;
+
 
     // Helpers
     UTextureRenderTarget2D* ResolveDefaultRT_Y() const;
