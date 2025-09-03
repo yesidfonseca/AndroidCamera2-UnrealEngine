@@ -13,15 +13,6 @@ class FAndroidCamera2Java;
 class UTextureRenderTarget2D;
 
 UENUM(BlueprintType)
-enum class EAndroidCamera2RenderingState : uint8
-{
-	OFF_AUTO,
-	OFF_MANUAL,
-	ON_AUTO,
-	ON_MANUAL
-};
-
-UENUM(BlueprintType)
 enum class EAndroidCamera2State : uint8
 {
 	OFF,

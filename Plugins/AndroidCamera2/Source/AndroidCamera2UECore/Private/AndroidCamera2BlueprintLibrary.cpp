@@ -67,3 +67,15 @@ TArray<FString> UAndroidCamera2BlueprintLibrary::GetCameraIdList()
     return CameraList;
 }
 
+EAndroidCamera2State UAndroidCamera2BlueprintLibrary::GetCameraState()
+{
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->GetCameraState();
+        }
+    }
+
+    return EAndroidCamera2State::OFF;
+}

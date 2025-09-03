@@ -33,4 +33,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "PauseCapturing")
 	static void PauseCapturing();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Android|Camera2", DisplayName = "GetCameraState")
+	static EAndroidCamera2State GetCameraState();
 };
