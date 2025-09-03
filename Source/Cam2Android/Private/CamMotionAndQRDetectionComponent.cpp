@@ -5,7 +5,6 @@
 #include "AndroidCamera2Subsystem.h"
 #include "Kismet/GameplayStatics.h" 
 #include "Engine/Engine.h"
-#include "QuircReader.h"
 
 // Sets default values for this component's properties
 UCamMotionAndQRDetectionComponent::UCamMotionAndQRDetectionComponent()
@@ -61,13 +60,7 @@ void UCamMotionAndQRDetectionComponent::TickComponent(float DeltaTime, ELevelTic
 					bGotFrame = true;
 
 					FQuircReader::DecodeFromLuma(YCurr.GetData(), Width, Height, Width, QRDetections);
-					if (QRDetections.Num() > 0)
-					{
-						for (const auto& QR : QRDetections)
-						{
-							UE_LOG(LogTemp, Display, TEXT("QR: %s"), *QR.Text);
-						}
-					}
+					
 				}
 			}
 		}
@@ -92,7 +85,8 @@ void UCamMotionAndQRDetectionComponent::TickComponent(float DeltaTime, ELevelTic
 
 	ComputeFlowAndClassify(YCurr.GetData(), YPrev.GetData());
 
-
+	OnQRCodeDetected.Broadcast(QRDetections);
+	OnCamMotionDected.Broadcast(MotionKind);
 
 	// actualizar historia
 	YPrev = YCurr;

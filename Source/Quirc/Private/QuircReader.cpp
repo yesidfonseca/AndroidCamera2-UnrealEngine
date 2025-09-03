@@ -6,7 +6,7 @@ extern "C" {
 }
 
 bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Stride,
-                                  TArray<FQRDetection>& Out) noexcept
+                                  TArray<FQRDetection>& Out) 
 {
 	Out.Reset();
 
@@ -55,6 +55,7 @@ bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Str
 					R.Text = UTF8_TO_TCHAR(S.c_str());
 
 					// Esquinas (siempre 4 en quirc), en orden TL, TR, BR, BL aprox.
+					
 					R.Corners.Reserve(4);
 					for (int c = 0; c < 4; ++c)
 					{

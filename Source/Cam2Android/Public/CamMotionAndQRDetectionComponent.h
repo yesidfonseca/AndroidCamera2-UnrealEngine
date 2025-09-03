@@ -4,7 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "QuircReader.h"
 #include "CamMotionAndQRDetectionComponent.generated.h"
+
+
 
 UENUM(BlueprintType)
 enum class EMotionKind : uint8
@@ -18,6 +21,9 @@ enum class EMotionKind : uint8
 	Backward        UMETA(DisplayName = "Backward (away)")
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQRCodeDetected, TArray<FQRDetection>, QRCodesDetected);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCamMotionDected, EMotionKind, CamMotionKind);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class CAM2ANDROID_API UCamMotionAndQRDetectionComponent : public UActorComponent
 {
@@ -26,6 +32,12 @@ class CAM2ANDROID_API UCamMotionAndQRDetectionComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UCamMotionAndQRDetectionComponent();
+
+	UFUNCTION(BlueprintPure, Category = "Quirc QRCode")
+	TArray<FQRDetection>  GetQRCodesDetected() const { return QRDetections; }
+
+	UPROPERTY(BlueprintAssignable, Category = "Quirc QRCode")
+	FOnQRCodeDetected OnQRCodeDetected;
 
 	UFUNCTION(BlueprintPure, Category = "CamMotion")
 	EMotionKind GetMotionKind() const { return MotionKind; }
@@ -51,6 +63,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "CamMotion", meta = (ClampMin = "0.5", ClampMax = "4.0"))
 	float TangentialBias = 1.5f;     // tangencial domina si > bias * |radial|
+
+	UPROPERTY(BlueprintAssignable, Category = "CamMotion")
+	FOnCamMotionDected OnCamMotionDected;
 
 protected:
 	// Called when the game starts
