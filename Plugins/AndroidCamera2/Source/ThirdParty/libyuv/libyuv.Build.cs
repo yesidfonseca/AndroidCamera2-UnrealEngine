@@ -21,7 +21,6 @@ public class libyuv : ModuleRules
         }
         else
         {
-            // Editor/otras plataformas: compila sin libyuv
             PublicDefinitions.Add("WITH_LIBYUV=0");
         }
     }

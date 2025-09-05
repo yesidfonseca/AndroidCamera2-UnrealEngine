@@ -27,7 +27,7 @@ import android.util.Size;
 import android.util.Range;
 import android.view.Surface;
 import androidx.annotation.Nullable;
-import android.os.Trace; // o: import android.os.Trace;
+import android.os.Trace;
 
 import com.epicgames.unreal.GameActivity;
 
@@ -231,7 +231,7 @@ public final class Camera2UE {
             cameraId = inputCameraId;
 
             mRotationMode = RotationMode.values()[RotMode];
-            Log.d(TAG, "rotationMode:" + mRotationMode);
+            //Log.d(TAG, "rotationMode:" + mRotationMode);
             int mOrientation = RotMode;
             if(mRotationMode==RotationMode.RSensor)
             {
@@ -244,7 +244,7 @@ public final class Camera2UE {
             // Elegir tamanos
             CameraCharacteristics cc = cameraManager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = cc.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            if (map == null) { Log.e(TAG, "No StreamConfigurationMap"); return false; }
+            if (map == null) { Log.e(TAG, "initializeCamera:No StreamConfigurationMap"); return false; }
 
             // Resolver modos 3A
             resolve3AModesSimple(cc, AE_ModeIn, AF_ModeIn, AWB_ModeIn, ControlModeIn);
@@ -253,12 +253,12 @@ public final class Camera2UE {
             Size[] jpegSizes = map.getOutputSizes(ImageFormat.JPEG);
             jpegSize = pickNearesSize(jpegSizes, stillCaptureWidth, stillCaptureHeight);
             jpegSize = (jpegSize == null)? new Size(1920, 1080) : jpegSize;
-            Log.d(TAG, "jpegSize: w:" +jpegSize.getWidth() + " , h:" + jpegSize.getHeight());
+            Log.d(TAG, "initializeCamera:jpegSize: w:" +jpegSize.getWidth() + " , h:" + jpegSize.getHeight());
 
             // YUV: buen tamano para preview (elige 1280x720 si existe, si no el mas cercano <=1080p)
             Size[] yuvSizes = map.getOutputSizes(ImageFormat.YUV_420_888);
             yuvSize = pickNearesSize(yuvSizes, previewWidth, previewHeight);
-            Log.d(TAG, "yuvSize: w:" +yuvSize.getWidth() + " , h:" + yuvSize.getHeight());
+            Log.d(TAG, "initializeCamera:yuvSize: w:" +yuvSize.getWidth() + " , h:" + yuvSize.getHeight());
 
             // Readers
             closeReaders();
@@ -318,9 +318,9 @@ public final class Camera2UE {
             }
             previewRequest = previewBuilder.build();
             captureSession.setRepeatingRequest(previewRequest, captureCallback, getBackgroundHandler());
-            Log.e(TAG, "startPreviewRepeating: start todo bien");
+            Log.e(TAG, "startPreviewRepeating: start ok");
         } catch (Throwable t) {
-            Log.e(TAG, "startPreviewRepeating failed", t);
+            Log.e(TAG, "startPreviewRepeating: failed", t);
         }
     }
 
@@ -330,7 +330,7 @@ public final class Camera2UE {
     /** Dispara una foto JPEG con secuencia 3A: AF lock + AE precapture + still. */
     public synchronized boolean takePhoto() {
         if (!initialized || cameraDevice == null || captureSession == null) {
-            Log.e(TAG, "takePhoto: camara no lista");
+            Log.e(TAG, "takePhoto: camere is no ready");
             return false;
         }
         try {
@@ -343,11 +343,11 @@ public final class Camera2UE {
             }
 
             captureSession.capture(previewBuilder.build(), captureCallback, getBackgroundHandler());
-            Log.d(TAG, "takePhoto: capture request 1 lanzada");
+            Log.d(TAG, "takePhoto: capture request launched");
             // El resto (AE precapture y still) ocurre en captureCallback cuando los estados reporten listo.
             return true;
         } catch (Throwable t) {
-            Log.e(TAG, "takePhoto failed", t);
+            Log.e(TAG, "takePhoto: failed", t);
             // Reanudar preview si hizo fallo a mitad
             try { 
                 if(AF_Mode != CameraMetadata.CONTROL_AF_MODE_OFF)
@@ -421,7 +421,7 @@ public final class Camera2UE {
                     
                 }
             } catch (Throwable t) {
-                Log.e(TAG, "3A process error", t);
+                Log.e(TAG, "captureCallback:3A process error", t);
                 // reanuda preview si algo falla
                 try { previewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL); } catch (Throwable ignored) {}
                 startPreviewRepeating();
@@ -474,7 +474,7 @@ public final class Camera2UE {
                         previewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
                         previewBuilder.set(CaptureRequest.CONTROL_AE_LOCK, false);
                         previewBuilder.set(CaptureRequest.CONTROL_AWB_LOCK, false);
-                        Log.d(TAG, "captureStill: todo bien, puedes consultar la data");
+                        Log.d(TAG, "captureStill: stillCaputre ready, you can get the data");
                     } catch (Throwable ignored) {}
                     startPreviewRepeating();
                     mCaptureState = CaptureState.STATE_IDLE;
@@ -482,7 +482,7 @@ public final class Camera2UE {
             }, getBackgroundHandler());
 
         } catch (Throwable t) {
-            Log.e(TAG, "captureStill failed", t);
+            Log.e(TAG, "captureStill: failed", t);
             try {
                 previewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
                 previewBuilder.set(CaptureRequest.CONTROL_AE_LOCK, false);
@@ -490,7 +490,6 @@ public final class Camera2UE {
             } catch (Throwable ignored) {}
             startPreviewRepeating();
             mCaptureState = CaptureState.STATE_IDLE;
-            Log.d(TAG, "captureStill: fail");
         }
     }
 
@@ -503,16 +502,16 @@ public final class Camera2UE {
             byte[] lastJpegbytes = lastJpeg.get();
 
             if (lastJpegbytes == null || lastJpegbytes.length == 0) {
-                Log.e(TAG, "saveResult: no hay datos de imagen capturada");
+                Log.e(TAG, "saveResult: no data");
                 return null;
             }
 
             File outFile = createTimestampedFile(appContext, "jpg");
             writeBytesToFile(lastJpegbytes, outFile);
-            Log.d(TAG, "Imagen guardada: " + outFile.getAbsolutePath());
+            Log.d(TAG, "saveResult: ok. Path:" + outFile.getAbsolutePath());
             return outFile.getAbsolutePath();
         } catch (IOException io) {
-            Log.e(TAG, "saveResult: error escribiendo archivo " + io.getMessage(), io);
+            Log.e(TAG, "saveResult: fail write file. Error:" + io.getMessage(), io);
             return null;
         }
     }
@@ -530,7 +529,7 @@ public final class Camera2UE {
         }
         stopBgThread();
         framecounter = 0;
-        Log.d(TAG, "Recursos liberados");
+        Log.d(TAG, "release: ok");
     }
 
     private void closeReaders() {
@@ -558,23 +557,23 @@ public final class Camera2UE {
     @SuppressLint("MissingPermission")
     private void openCamera() throws CameraAccessException {
         if (cameraManager == null || cameraId == null) {
-            Log.e(TAG, "openCamera: manager o cameraId nulos");
+            Log.e(TAG, "openCamera: manager or cameraId null");
             return;
         }
         cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
             @Override public void onOpened(CameraDevice camera) {
                 cameraDevice = camera;
                 createCaptureSession();       
-                Log.d(TAG, "openCamera: todo bien");
+                Log.d(TAG, "openCamera: ok");
             }
             @Override public void onDisconnected(CameraDevice camera) {
-                Log.w(TAG, "Camara desconectada");
+                Log.w(TAG, "openCamera: Disconected");
                 camera.close();
                 cameraDevice = null;
                 initialized = false;
             }
             @Override public void onError(CameraDevice camera, int error) {
-                Log.e(TAG, "Error al abrir camara: " + error);
+                Log.e(TAG, "openCamera: Error opening camera. Error:" + error);
                 camera.close();
                 cameraDevice = null;
                 initialized = false;
@@ -593,17 +592,17 @@ public final class Camera2UE {
                         @Override public void onConfigured(CameraCaptureSession session) {
                             captureSession = session;
                             startPreviewRepeating();
-                            Log.d(TAG, "CaptureSession configurada");
+                            Log.d(TAG, "createCaptureSession: ok configured");
                         }
                         @Override public void onConfigureFailed(CameraCaptureSession session) {
-                            Log.e(TAG, "Fallo configuracion de CaptureSession");
+                            Log.e(TAG, "createCaptureSession: Fail configuration");
                             initialized = false;
                         }
                     },
                     getBackgroundHandler()
             );
         } catch (CameraAccessException e) {
-            Log.e(TAG, "createCaptureSession: " + e.getMessage(), e);
+            Log.e(TAG, "createCaptureSession error:" + e.getMessage(), e);
         }
     }
 
@@ -624,7 +623,7 @@ public final class Camera2UE {
         if (camThread != null) {
             camThread.quitSafely();
             try { camThread.join(); } catch (InterruptedException ignored) {
-                Log.e(TAG, "stopBgThread: " + ignored.getMessage(), ignored);
+                Log.e(TAG, "stopBgThread. Error:" + ignored.getMessage(), ignored);
             }
             camThread = null; bgHandler = null;
         }
@@ -677,7 +676,7 @@ public final class Camera2UE {
                 lastJpeg.set(out);
             }
         } catch (Throwable t) {
-            Log.e(TAG, "jpegListener error", t);
+            Log.e(TAG, "jpegListener: error:", t);
         } finally {
             if (image != null) try { image.close(); } catch (Throwable ignored) {}
         }
@@ -696,7 +695,7 @@ public final class Camera2UE {
                 onYuvImage(image);  // respeta rowStride/pixelStride
             }
         } catch (Throwable t) {
-            Log.e(TAG, "yuvListener error", t);
+            Log.e(TAG, "yuvListener: error:", t);
         } finally {
             if (image != null) try { image.close(); } catch (Throwable ignored) {}
         }
@@ -731,7 +730,6 @@ public final class Camera2UE {
         return false;
     }
 
-    // Llama esto dentro de initializeCamera() despues de leer CameraCharacteristics cc
     private void resolve3AModesSimple(CameraCharacteristics cc,
                                       int desiredAE, int desiredAF, int desiredAWB, int desiredControl)
     {
@@ -756,7 +754,7 @@ public final class Camera2UE {
         // CONTROL_MODE (no hay lista available; aplicamos el pedido tal cual)
         ControlMode = desiredControl;
 
-        Log.d(TAG, "Resolved 3A -> AF:" + AF_Mode + " AE:" + AE_Mode + " AWB:" + AWB_Mode + " CTRL:" + ControlMode);
+        Log.d(TAG, "resolve3AModesSimple: Resolved 3A -> AF:" + AF_Mode + " AE:" + AE_Mode + " AWB:" + AWB_Mode + " CTRL:" + ControlMode);
     }
 
     private static class CompareSizesByArea implements Comparator<Size> {
@@ -784,7 +782,6 @@ public final class Camera2UE {
         }
     }
 
-    // --- Consumidor: leer sin copiar (acceso breve) ---
     @Nullable
     public FrameUpdateInfo getLastFrameInfo() {
 
@@ -804,7 +801,7 @@ public final class Camera2UE {
         //TODO NOTIFY
     }
 
-    /** Devuelve el mejor rango fijo que contenga 'targetFps' (p.ej. 30 o 60), o uno variable que lo incluya. */
+    
     public static Range<Integer> pickFpsRange(CameraCharacteristics ch, int targetFps) {
         Range<Integer>[] ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
         if (ranges == null || ranges.length == 0) return null;
@@ -817,7 +814,7 @@ public final class Camera2UE {
             }
             if (r.contains(targetFps) && contains == null) contains = r;
         }
-        return exactFixed != null ? exactFixed : contains; // null si no existe
+        return exactFixed != null ? exactFixed : contains;
     }
 
 

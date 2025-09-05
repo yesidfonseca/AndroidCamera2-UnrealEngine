@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Tickable.h" // FTickableGameObject
+#include "Tickable.h" 
 
 
 #if PLATFORM_ANDROID
@@ -84,6 +84,7 @@ enum class EAndroidCamera2RotationMode : uint8
 	R270 = 3,
 	RSensor = 4
 };
+
 UCLASS()
 class ANDROIDCAMERA2UECORE_API UAndroidCamera2Subsystem final : public UGameInstanceSubsystem
                                 , public FTickableGameObject
@@ -96,21 +97,20 @@ public:
 
 	
 
-    // FTickableGameObject (Tick en Game Thread)
     virtual void Tick(float DeltaSeconds) override;
     virtual TStatId GetStatId() const override
     { RETURN_QUICK_DECLARE_CYCLE_STAT(UCamera2UESubsystem, STATGROUP_Tickables); }
     virtual ETickableTickType GetTickableTickType() const override
-    { return ETickableTickType::Always; }     // o Always si prefieres
+    { return ETickableTickType::Always; } 
     virtual bool IsTickable() const override
-    { return true; }                            // controla si tiquea
+    { return true; } 
     virtual bool IsTickableInEditor() const override
-    { return false; }                               // true si quieres PIE/editor
+    { return false; }
 
 	bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
 		EAndroidCamera2RotationMode RotMode, int32 previewWidth = 1280, int32 previewHeight = 720, int32 stillCaptureWidth = 1920, int32 stillCaptureHeight = 1080, int32 targetFPS = 30);
 
-	// API de alto nivel (Game Thread)
+	
     TArray<FString> GetCameraIdList();
 
 	void GetLastFrameInfo();

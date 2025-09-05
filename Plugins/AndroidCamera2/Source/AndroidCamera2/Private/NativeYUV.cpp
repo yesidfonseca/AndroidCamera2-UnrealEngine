@@ -31,7 +31,6 @@ Java_com_FonseCode_camera2_NativeYuv_yuv420888ToI420(
     uint8_t* DU = (uint8_t*)env->GetDirectBufferAddress(dstU);
     uint8_t* DV = (uint8_t*)env->GetDirectBufferAddress(dstV);
 
-    // libyuv hace todo: respeta rowStride y pixelStride de UV (1 ó 2).
     int r = libyuv::Android420ToI420(
         Y, yStride,
         U, uStride,
@@ -44,7 +43,7 @@ Java_com_FonseCode_camera2_NativeYuv_yuv420888ToI420(
     return r; // 0 = OK
 }
 
-// Opcional: si prefieres UV intercalado (NV12) para subir PF_R8G8 a UE:
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_FonseCode_camera2_NativeYuv_i420ToNv12(
         JNIEnv* env, jclass,
@@ -61,12 +60,12 @@ Java_com_FonseCode_camera2_NativeYuv_i420ToNv12(
     uint8_t* DY = (uint8_t*)env->GetDirectBufferAddress(dstY);
     uint8_t* DUV = (uint8_t*)env->GetDirectBufferAddress(dstUV);
 
-    // Copia Y tal cual
+
     libyuv::I420Copy(SY, srcYStride, SU, srcUStride, SV, srcVStride,
-                     DY, dstYStride, /*dummy*/nullptr,0, /*dummy*/nullptr,0,
+                     DY, dstYStride, nullptr,0, nullptr,0,
                      width, height);
 
-    // Mezcla U y V en UV intercalado
+
     return libyuv::I420ToNV12(SY, dstYStride, SU, srcUStride, SV, srcVStride,
                               DY, dstYStride, DUV, dstUVStride,
                               width, height);

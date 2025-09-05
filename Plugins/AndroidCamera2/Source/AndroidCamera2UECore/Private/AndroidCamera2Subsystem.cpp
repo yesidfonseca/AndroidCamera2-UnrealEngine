@@ -59,7 +59,7 @@ UTextureRenderTarget2D* UAndroidCamera2Subsystem::ValidateRenderTarget(TSoftObje
         RT = RenderTarget2D.LoadSynchronous();
         if (!IsValid(RT))
         {
-            UE_LOG(LogTemp, Error, TEXT("UAndroidCamera2Subsystem::ValidateRenderTarget::No se pudo cargar el RenderTarget2D."));
+            UE_LOG(LogTemp, Warning, TEXT("UAndroidCamera2Subsystem::ValidateRenderTarget::No se pudo cargar el RenderTarget2D."));
         }        
     }
     return RT;
@@ -319,7 +319,7 @@ void UAndroidCamera2Subsystem::UpdateRenderTextures()
     if (bDoV) { EnsureRT_G8(v_RT2D, CurrentWidth/2, CurrentHeight/2); }
     
     
-    // 3) Recursos RHI (desde Game Thread)
+    // 3) Recursos RHI 
     FTextureRenderTargetResource* RTResY = bDoY ? y_RT2D->GameThread_GetRenderTargetResource() : nullptr;
     FTextureRenderTargetResource* RTResU = bDoU ? u_RT2D->GameThread_GetRenderTargetResource() : nullptr;
     FTextureRenderTargetResource* RTResV = bDoV ? v_RT2D->GameThread_GetRenderTargetResource() : nullptr;

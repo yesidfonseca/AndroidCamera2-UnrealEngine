@@ -4,8 +4,8 @@
 
 #include "AndroidCamera2UECoreModule.h"
 #include "Modules/ModuleManager.h"
-#include "Interfaces/IPluginManager.h"   // IPluginManager
-#include "ShaderCore.h"                  // AddShaderSourceDirectoryMapping
+#include "Interfaces/IPluginManager.h"   
+#include "ShaderCore.h"                  
 
 
 IMPLEMENT_MODULE(FAndroidCamera2UECoreModule, AndroidCamera2UECore)
@@ -17,7 +17,6 @@ void FAndroidCamera2UECoreModule::StartupModule()
 		TEXT("Shaders")
 	);
 
-	// Alias virtual -> carpeta real
 	AddShaderSourceDirectoryMapping(TEXT("/Plugin/AndroidCamera2"), ShaderDir);
 }
 
