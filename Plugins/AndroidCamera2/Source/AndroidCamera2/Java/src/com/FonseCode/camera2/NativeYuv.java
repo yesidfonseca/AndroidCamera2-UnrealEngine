@@ -2,6 +2,8 @@
  * Copyright (c) 2025-2026 Yesid Fonseca
  */
 
+//This distribution includes libyuv (BSD 3-Clause).
+
 package com.FonseCode.camera2;
 
 import android.graphics.Rect;
