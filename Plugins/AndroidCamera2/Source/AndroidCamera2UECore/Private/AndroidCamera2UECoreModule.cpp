@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
+
+
 #include "AndroidCamera2UECoreModule.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"   // IPluginManager

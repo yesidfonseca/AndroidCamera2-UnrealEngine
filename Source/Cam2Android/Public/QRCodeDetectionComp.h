@@ -1,4 +1,5 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
 
 #pragma once
 

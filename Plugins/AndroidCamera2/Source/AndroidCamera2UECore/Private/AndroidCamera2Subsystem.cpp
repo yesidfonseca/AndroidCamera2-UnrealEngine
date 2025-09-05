@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
+
+
 #include "AndroidCamera2Subsystem.h"
 #include "AndroidCamera2Settings.h"
 #include "Engine/TextureRenderTarget2D.h"

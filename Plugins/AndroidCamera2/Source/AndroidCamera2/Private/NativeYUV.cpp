@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
+
+
 #include "Android/AndroidJNI.h"
 #include "Android/AndroidApplication.h"
 #include <android/log.h>

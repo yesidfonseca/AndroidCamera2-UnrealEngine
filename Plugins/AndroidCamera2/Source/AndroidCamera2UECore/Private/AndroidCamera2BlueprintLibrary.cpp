@@ -1,8 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
+
+
 #include "AndroidCamera2BlueprintLibrary.h"
 #include "Kismet/GameplayStatics.h" 
 #include "AndroidCamera2Subsystem.h"
-
-
 
 
 bool UAndroidCamera2BlueprintLibrary::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,

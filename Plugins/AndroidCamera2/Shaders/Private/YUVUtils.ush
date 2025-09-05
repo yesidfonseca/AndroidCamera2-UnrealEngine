@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2025-2026 Yesid Fonseca
+
 // YuvUtils.ush  —  Conversión I420 (Y, U, V) -> RGB con 6 variantes
 // Mode: 0=601_L, 1=601_F, 2=709_L, 3=709_F, 4=2020_L, 5=2020_F
 //Sampler to use with pre computed map

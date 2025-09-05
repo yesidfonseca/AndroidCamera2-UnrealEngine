@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2025-2026 Yesid Fonseca
+ */
+
 package com.FonseCode.camera2;
 
 import android.graphics.Rect;
@@ -66,7 +70,6 @@ public final class NativeYuv {
     int uOff = (crop.top/2) * uStride + (crop.left/2) * uPix;
     int vOff = (crop.top/2) * vStride + (crop.left/2) * vPix;
 
-    // Strides destino (contiguos): Y=w, U=V=w/2
     int r = yuv420888ToI420(
         y, yStride, yOff,
         u, uStride, uPix, uOff,
@@ -77,7 +80,6 @@ public final class NativeYuv {
     return r;
   }
 
-  // Crea buffers destino (Direct)
   public static ByteBuffer allocDirect(int size) {
     ByteBuffer b = ByteBuffer.allocateDirect(size);
     b.order(ByteOrder.nativeOrder());
