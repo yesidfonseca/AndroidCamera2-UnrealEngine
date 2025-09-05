@@ -44,12 +44,3 @@ void UAndroidCamera2Settings::PostEditChangeProperty(FPropertyChangedEvent& Prop
 
 }
 #endif
-
-UTextureRenderTarget2D* UAndroidCamera2Settings::ResolveDefaultRT_Y() const
-{ return RenderTargetDataYPlane.RenderTarget2D.IsNull() ? nullptr : RenderTargetDataYPlane.RenderTarget2D.LoadSynchronous(); }
-
-UTextureRenderTarget2D* UAndroidCamera2Settings::ResolveDefaultRT_U() const
-{ return RenderTargetDataYPlane.RenderTarget2D.IsNull() ? nullptr : RenderTargetDataYPlane.RenderTarget2D.LoadSynchronous(); }
-
-UTextureRenderTarget2D* UAndroidCamera2Settings::ResolveDefaultRT_V() const
-{ return RenderTargetDataYPlane.RenderTarget2D.IsNull() ? nullptr : RenderTargetDataYPlane.RenderTarget2D.LoadSynchronous(); }

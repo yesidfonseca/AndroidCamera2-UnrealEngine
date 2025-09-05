@@ -1,11 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2025-2026 Yesid Fonseca-->
-<?xml version="1.0" encoding="utf-8"?>
 <root xmlns:android="http://schemas.android.com/apk/res/android">
 
     <init>
         <log text="AndroidCamera2 init"/>
         <setBool result="bSupported" value="true"/>
+		<setBoolFromProperty
+            result="bHeadsetCamPerm"
+            ini="Game"
+            section="/Script/AndroidCamera2UECore.AndroidCamera2Settings"
+            property="bRequestHeadsetCameraPermission"
+            default="false"/>
     </init>
 
     <androidManifestUpdates>
@@ -13,6 +19,11 @@
             <true>
                 <addPermission android:name="android.permission.CAMERA"/>
                 <addFeature android:name="android.hardware.camera.any" android:required="true"/>
+				<if condition="bHeadsetCamPerm">
+					<true>
+						<addPermission android:name="horizonos.permission.HEADSET_CAMERA"/>						
+					</true>
+				</if>
             </true>
         </if>
     </androidManifestUpdates>
