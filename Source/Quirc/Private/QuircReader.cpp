@@ -5,7 +5,7 @@
 #include <string>
 
 extern "C" {
-	#include "quirc.h" // asegúrate de tener el include path al folder donde está quirc.h
+	#include "quirc.h" 
 }
 
 bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Stride,
@@ -13,7 +13,6 @@ bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Str
 {
 	Out.Reset();
 
-	// Validaciones defensivas
 	if (!Luma || W <= 0 || H <= 0 || Stride < W)
 	{
 		return false;
@@ -30,10 +29,9 @@ bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Str
 	if (quirc_resize(Q, W, H) == 0)
 	{
 		int iW = 0, iH = 0;
-		uint8_t* Img = quirc_begin(Q, &iW, &iH); // buffer interno W×H que debemos llenar
+		uint8_t* Img = quirc_begin(Q, &iW, &iH); 
 		if (Img && iW == W && iH == H)
 		{
-			// Copia fila a fila desde Luma (stride externo) al buffer interno (packed)
 			for (int y = 0; y < H; ++y)
 			{
 				FMemory::Memcpy(Img + y * W, Luma + y * Stride, W);
@@ -52,12 +50,10 @@ bool FQuircReader::DecodeFromLuma(const uint8* Luma, int32 W, int32 H, int32 Str
 				{
 					FQRDetection R;
 
-					// Texto: Data.payload (UTF-8, length = payload_len; puede no estar null-terminated)
 					const std::string S(reinterpret_cast<const char*>(Data.payload),
 					                    static_cast<size_t>(Data.payload_len));
 					R.Text = UTF8_TO_TCHAR(S.c_str());
 
-					// Esquinas (siempre 4 en quirc), en orden TL, TR, BR, BL aprox.
 					
 					R.Corners.Reserve(4);
 					for (int c = 0; c < 4; ++c)

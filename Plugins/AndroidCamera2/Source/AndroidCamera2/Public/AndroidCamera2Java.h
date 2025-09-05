@@ -13,14 +13,19 @@ public:
 	FAndroidCamera2Java();
 	virtual ~FAndroidCamera2Java();
 	TArray<FString> GetCameraIdList();
+	
 	bool InitializeCamera(const FString& CameraId, uint8 AEMode, uint8 AFMode, uint8 AWBMode, uint8 ControMode, uint8 RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS);
+	bool GetInitilizedCamaraState();
+	void Release();
+	
+	// TODO: missing functionality for stillCapure
     bool TakePhoto() ;
     bool GetLastCapturedImage(TArray<uint8>& OutJpeg) const;
-	bool GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32 & previewWidth, int32 & previewHeight, int64& timeStamp) ;
-    bool SaveResult(FString& OutAbsolutePath);
-	void ReleaseLastPreviewFrameInfo();
-	void Release();
-	bool GetInitilizedCamaraState();
+	bool SaveResult(FString& OutAbsolutePath);
+	// END TODO
+
+	bool GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32 & previewWidth, int32 & previewHeight, int64& timeStamp) ;    
+	void ReleaseLastPreviewFrameInfo();	
 	int64 GetLastFrameTimeStamp();
 
 private:

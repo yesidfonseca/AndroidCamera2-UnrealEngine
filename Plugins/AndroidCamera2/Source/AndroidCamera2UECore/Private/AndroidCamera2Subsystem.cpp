@@ -373,7 +373,7 @@ void UAndroidCamera2Subsystem::UpdateRenderTextures()
 }
 
 bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
-    EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 stillCaptureWidth, int32 stillCaptureHeight, int32 targetFPS)
+    EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 targetFPS)
 {
 
 #if PLATFORM_ANDROID
@@ -389,8 +389,8 @@ bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroi
             static_cast<uint8>(RotMode),
             previewWidth,
             previewHeight,
-            stillCaptureWidth,
-            stillCaptureHeight,
+            previewWidth,   //TODO: missing functionality for stillCapure
+            previewHeight,  //TODO: missing functionality for stillCapure
             targetFPS
         )? EAndroidCamera2State::INITIALIZED : EAndroidCamera2State::FAIL_INIT; // Waiting for Initialization
 		CameraTimeLeftAfterInitialization = CameraTimeout;
