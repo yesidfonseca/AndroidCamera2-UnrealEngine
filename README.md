@@ -9,7 +9,7 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 - **Basic 3A controls** (device-dependent support): autofocus modes, auto-exposure and antibanding modes, auto-white-balance modes.
 - **Device enumeration & control**: list  cameras, initialize camera, pause/resume video capturing, stop video capturing. This simple funcionalities can be used with `UAndroidCamera2BlueprintLibrary`.
 - **GPU-friendly outputs**: three `UTextureRenderTarget2D` targets for I420 planes: **Y (Luma)**, **U (Chroma blue-difference)**, **V (Chroma red-difference)**. You can assign your own `UTextureRenderTarget2D` in  
-  **Project Settings → Plugins → Android Camera2 → Video Output → Data Settings.**
+  **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**
 - Fast YUV-RGB: material example using `/Plugin/AndroidCamera2/Private/YUVUtils.ush`.  
   See sample material at:  
   `/AndroidCamera2/Materials/MaterialsSamples/M_AndroidCamera2RGB_SampleUI`
@@ -26,7 +26,7 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 
 
 
-## ✅ Compatibilidad
+## ✅ Compatibility
 - **UE**: 5.6  
 - **Plataform**: Android (Vulkan-only)  
 - **ABI**: arm64-v8a  
@@ -37,7 +37,7 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 To access Meta Quest 3 passthrough cameras you must request `horizonos.permission.HEADSET_CAMERA` pemisson.
 
 Enable in:  
-**Project Settings → Plugins → Android Camera2 → Permissions | Meta Quest**
+**Project Settings → Plugins → Android Camera2 → Permissions Meta Quest**
 -    ✅ Request Headset Camera Permission  
 See [Meta documentation](https://developers.meta.com/horizon/documentation/spatial-sdk/spatial-sdk-pca-overview/).
 
@@ -46,20 +46,21 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 ## 🚀 Getting Started
 
 1. **Install**: place the plugin folder under `YourProject/Plugins/AndroidCamera2/`.
-2. (Optional) Assign your own Render Targets (Y/U/V) in Project Settings.
+2. (Optional) Assign your own Render Targets (Y/U/V) in **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**.
 3. **Make apk and install** it on an android device.
 4. **Make sure to enable all camera permissions**.
 5. **Open the apk and open UI sample**: `/AndroidCamera2/UISample/CameraUI` and press InitializeCamera.
 
 ## 🧩 API Overview
 - **Rendering**  
-  The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V). You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
+  The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V) planes. You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
 
 - **Raw buffers**  
   Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Make sure the setting #bCaptureBuffer# be enable if you need to get the buffer. (You can capture the buffer whitout rendering if you need it).
 
 Check this on:  
-  **Project Settings → Plugins → Android Camera2 → Video Output | Data Setting**  
+  **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**  
+  <img width="793" height="709" alt="image" src="https://github.com/user-attachments/assets/d3b0b014-f7e6-4edc-815a-2e868a1c34ea" />
 
   Example consumers in the sample: quirc (QR) and edge detection.  
 
