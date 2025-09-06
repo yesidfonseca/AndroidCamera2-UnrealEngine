@@ -7,8 +7,8 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 ## ✨ "AndroidCamera2" Plugin 
 - **Video Campture** via Android **Camera2** in **YUV I420** format.
 - **Basic 3A controls** (device-dependent support): autofocus modes, auto-exposure and antibanding modes, auto-white-balance modes.
-- **Device enumeration & control**: list  cameras, initialize camera, pause/resume video capturing, stop video capturing. This simple funcionalities can be used with UAndroidCamera2BlueprintLibrary.
-- **GPU-friendly outputs**: three UTextureRenderTarget2D targets for I420 planes: ** Y (Luma)**, ** U (Chroma blue-difference)**, **V (Chroma red-difference)**. You can assign your own UTextureRenderTarget2D in  
+- **Device enumeration & control**: list  cameras, initialize camera, pause/resume video capturing, stop video capturing. This simple funcionalities can be used with `UAndroidCamera2BlueprintLibrary`.
+- **GPU-friendly outputs**: three `UTextureRenderTarget2D` targets for I420 planes: **Y (Luma)**, **U (Chroma blue-difference)**, **V (Chroma red-difference)**. You can assign your own `UTextureRenderTarget2D` in  
   **Project Settings → Plugins → Android Camera2 → Video Output → Data Settings.**
 - Fast YUV-RGB: material example using `/Plugin/AndroidCamera2/Private/YUVUtils.ush`.  
   See sample material at:  
@@ -34,7 +34,7 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 
 ## 🔒 Permissions (Meta Quest 3 – optional)
 
-To access Meta Quest 3 passthrough cameras of you must request `horizonos.permission.HEADSET_CAMERA` pemisson.
+To access Meta Quest 3 passthrough cameras you must request `horizonos.permission.HEADSET_CAMERA` pemisson.
 
 Enable in:  
 **Project Settings → Plugins → Android Camera2 → Permissions | Meta Quest**
@@ -53,10 +53,10 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 
 ## 🧩 API Overview
 - **Rendering**  
-  The plugin can auto-update the three UTextureRenderTarget2D (Y/U/V). You can disable per-plane rendering updates or point the plugin to custom UTextureRenderTarget2D. 
+  The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V). You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
 
 - **Raw buffers**  
-  Use UAndroidCamera2Subsystem to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Make sure the setting #bCaptureBuffer# be enable if you need to get the buffer. (You can capture the buffer whitout rendering if you need it).
+  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Make sure the setting #bCaptureBuffer# be enable if you need to get the buffer. (You can capture the buffer whitout rendering if you need it).
 
 Check this on:  
   **Project Settings → Plugins → Android Camera2 → Video Output | Data Setting**  
@@ -72,3 +72,18 @@ Check this on:
   - **Seccion name**: `packtoI420Lib` (created with `android.os.Trace.beginSecction(...)`/`endSection()`).
   - Capture with **Perfetto/Systrace** and divide total time by number of frames to estimate per-frame overhead.
 
+## 🛠️ Project Structure (high level)
+```
+AndroidCamera2 (plugin)
+ ├─ Source/  
+ │  ├─ AndroidCamera2UECore/…             ← core module (Java/JNI glue, subsystem, BP lib)
+ │  └─ Shaders/Private/YUVUtils.ush       ← YUV→RGB helpers for materials
+ └─ Content/
+    ├─ Materials/MaterialsSamples/…       ← sample RGB material
+    └─ UISample/CameraUI                  ← sample UI
+
+Project
+ └─ Source/
+    └─ Quirc/…                            ← tiny module wrapping quirc (QR from luma)
+
+```
