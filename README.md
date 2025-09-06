@@ -29,3 +29,11 @@ If you are going to access to the passthrough camera of the Meta Quest 3 device 
 
 Project Settings → Plugins → Android Camera2 → Permissions | Meta Quest
 -    Request Headset Camera Permission ✅
+
+## ⏱️ Rendimiento y límites
+- **Vulkan-only** en Android.  
+- YUV→RGB en CPU es costoso; usa material/shader (recomendado) o compute si integras.  
+- If you set Rotation different to EAndroidCamera2RotationMode::R0 then the Java Class rotates the data using the yub library and can add 1.7ms of lattency per frame for a 1920x1080 video size (measured with Snapdragon 7+ Gen2 Mobile and 12 GB Ram). You can use the seccion trace "packtoI420Lib" in Android to measure the time consumed in the conversion to YUV I420 format and apply rotations (you need to measure the number of frames or estimated them to make a correct measure of time per frame: #total amount of time / # number of frames).
+
+
+<img width="2200" height="990" alt="image" src="https://github.com/user-attachments/assets/3d884157-ef39-481d-8f02-8b68604be9d3" />
