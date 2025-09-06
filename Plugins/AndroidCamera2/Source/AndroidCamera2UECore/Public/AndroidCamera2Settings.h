@@ -12,7 +12,7 @@ struct FAndroidCamera2OutputDataSettings
 {
     GENERATED_BODY()
 
-    UPROPERTY(config, EditAnywhere, Category = "Output|RenderTarget", meta = (ToolTip = "If true, write RenderTarget2D"))
+    UPROPERTY(config, EditAnywhere, Category = "Output|RenderTarget", meta = (ToolTip = "If true, you need to set RenderTarget2D"))
     bool bRender = true;
 
     UPROPERTY(config, EditAnywhere, Category = "Output|BufferTarget", meta = (ToolTip = "If false, then Render must to be false"))
@@ -24,40 +24,45 @@ struct FAndroidCamera2OutputDataSettings
 };
 
 
-UCLASS(config=Game, defaultconfig, meta=(DisplayName="Android Camera2"))
+UCLASS(config = AndroidCamera2, defaultconfig, meta = (DisplayName = "Android Camera2"))
 class ANDROIDCAMERA2UECORE_API UAndroidCamera2Settings : public UDeveloperSettings
 {
     GENERATED_BODY()
 public:
     UAndroidCamera2Settings();
 
+    virtual FName GetContainerName() const override { return TEXT("Project"); } 
+    virtual FName GetCategoryName()  const override { return TEXT("Plugins"); }
+    virtual FName GetSectionName()   const override { return TEXT("Android Camera2"); }
+
+
     // Categoría que verás en Project Settings
 #if WITH_EDITOR
     virtual FText GetSectionText() const override
-    { return NSLOCTEXT("AndroidCamera2", "SettingsName", "Android Camera2"); }
+    { return NSLOCTEXT("AndroidCamera2", "SectionTitle", "Android Camera2"); }
     virtual FText GetSectionDescription() const override
-    { return NSLOCTEXT("AndroidCamera2", "SettingsDesc", "Default output and color settings for the Android Camera2 plugin."); }
+    { return NSLOCTEXT("AndroidCamera2", "SettingsDesc", "Camera2 capture and output settings."); }
 
 
 
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-    UPROPERTY(config, EditAnywhere, Category="Output|AndroidCamera2OutputDataSettings", meta=(DisplayName="Y Plane (Luma)"))
+    UPROPERTY(config, EditAnywhere, Category="Render and Buffering Settings", meta=(DisplayName="Y Plane (Luma)"))
     FAndroidCamera2OutputDataSettings RenderTargetDataYPlane = FAndroidCamera2OutputDataSettings();
 
-    UPROPERTY(config, EditAnywhere, Category="Output|AndroidCamera2OutputDataSettings", meta=(DisplayName = "Cb Plane (Chroma blue-difference)"))
+    UPROPERTY(config, EditAnywhere, Category="Render and Buffering Settings", meta=(DisplayName = "Cb Plane (Chroma blue-difference)"))
     FAndroidCamera2OutputDataSettings RenderTargetDataUPlane = FAndroidCamera2OutputDataSettings();
 	
-	UPROPERTY(config, EditAnywhere, Category="Output|AndroidCamera2OutputDataSettings", meta = (DisplayName = "Cr Plane (Chroma red-difference)"))
+	UPROPERTY(config, EditAnywhere, Category="Render and Buffering Settings", meta = (DisplayName = "Cr Plane (Chroma red-difference)"))
     FAndroidCamera2OutputDataSettings RenderTargetDataVPlane = FAndroidCamera2OutputDataSettings();
 
-	UPROPERTY(config, EditAnywhere, Category = "Output|AndroidCamera2OutputDataSettings", meta = (DisplayName = "Auto Update Render Targets"))
+	UPROPERTY(config, EditAnywhere, Category = "Global Render Settings", meta = (DisplayName = "Auto Update Render Targets"))
 	bool bAutoUpdateRenderTargets = true;
 
-    UPROPERTY(config, EditAnywhere, Category = "Output|AndroidCamera2OutputDataSettings", meta = (DisplayName = "Time Out in seconds of camera after initizialization"))
+    UPROPERTY(config, EditAnywhere, Category = "Camera Settings", meta = (DisplayName = "Time Out in seconds of camera after initizialization"))
     float CameraTimeOut = 5.f;
 
-    UPROPERTY(config, EditAnywhere, Category = "Permissions|Meta Quest", meta = (DisplayName = "Request Headset Camera Permission"))
+    UPROPERTY(config, EditAnywhere, Category = "Permissions Meta Quest", meta = (DisplayName = "Request Headset Camera Permission"))
     bool bRequestHeadsetCameraPermission = false;
 };
