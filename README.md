@@ -47,8 +47,8 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 
 1. **Install**: place the plugin folder under `YourProject/Plugins/AndroidCamera2/`.
 2. (Optional) Assign your own Render Targets (Y/U/V) in **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**.
-3. **Make apk and install** it on an android device.
-4. **Make sure to enable all camera permissions**.
+3. **Build and install apk** on an Android device.
+4. **Make sure you enable all camera permissions**.
 5. **Open the apk and open UI sample**: `/AndroidCamera2/UISample/CameraUI` and press InitializeCamera.
 
 ## 🧩 API Overview
