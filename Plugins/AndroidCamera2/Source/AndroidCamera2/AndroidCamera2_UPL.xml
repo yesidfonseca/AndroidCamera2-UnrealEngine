@@ -8,7 +8,7 @@
         <setBool result="bSupported" value="true"/>
 		<setBoolFromProperty
             result="bHeadsetCamPerm"
-            ini="Game"
+            ini="AndroidCamera2"
             section="/Script/AndroidCamera2UECore.AndroidCamera2Settings"
             property="bRequestHeadsetCameraPermission"
             default="false"/>
