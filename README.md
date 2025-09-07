@@ -34,7 +34,7 @@ High-performance Android Camera2 capture for Unreal Engine 5.6 (Vulkan-only), wi
 
 ## 🔒 Permissions (Meta Quest 3 – optional)
 
-To access Meta Quest 3 passthrough cameras you must request `horizonos.permission.HEADSET_CAMERA` pemisson.
+To access Meta Quest 3 passthrough cameras you must request `horizonos.permission.HEADSET_CAMERA` pemisson. Please check the branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3) with a simple project example for Meta Quest 3. 
 
 Enable in:  
 **Project Settings → Plugins → Android Camera2 → Permissions Meta Quest**
@@ -48,7 +48,7 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 1. **Install**: place the plugin folder under `YourProject/Plugins/AndroidCamera2/`.
 2. (Optional) Assign your own Render Targets (Y/U/V) in **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**.
 3. **Build and install apk** on an Android device.
-4. **Make sure you enable all camera permissions**.
+4. **Make sure you enable all camera permissions**. If your are on [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3) branch for `Headset camera` permission in Meta Quest3 you need to go to `Privacy & safety > App permissions > Headset cameras` and enable the permission for the apk.
 5. **Open the apk and open UI sample**: `/AndroidCamera2/UISample/CameraUI` and press InitializeCamera.
 
 ## 🧩 API Overview
