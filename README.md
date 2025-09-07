@@ -43,16 +43,17 @@ See [Meta documentation](https://developers.meta.com/horizon/documentation/spati
 
 By default the plugin will require `android.permission.CAMERA` permisson. 
 
-You also need to enable `Headset camera` permission in Meta Quest3 device via  `Privacy & safety > App permissions > Headset cameras` and enable the permission for the apk.  
+> On the headset: enable **Headset camera** permission for your app:  
+> **Privacy & safety > App permissions > Headset cameras**
 
-Please check the branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3) with a simple project example for Meta Quest 3. 
+A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3).
 
 ## 🚀 Getting Started
 
 1. **Install**: place the plugin folder under `YourProject/Plugins/AndroidCamera2/`.
 2. (Optional) Assign your own Render Targets (Y/U/V) in **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**.
 3. **Build and install apk** on an Android device.
-4. **Make sure you enable all camera permissions**. 
+4. **Grant camera permissions** at first launch. 
 5. **Open the apk and open UI sample**: `/AndroidCamera2/UISample/CameraUI` and press InitializeCamera.
 
 ## 🧩 API Overview
@@ -60,19 +61,17 @@ Please check the branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Cam
   The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V) planes. You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
 
 - **Raw buffers**  
-  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Make sure the setting #bCaptureBuffer# be enable if you need to get the buffer. (You can capture the buffer whitout rendering if you need it).
+  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Ensure **`bCaptureBuffer`** be enable. (You can capture whitout rendering).
 
-Check this on:  
+Settings Path:  
   **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**  
   <img width="793" height="709" alt="image" src="https://github.com/user-attachments/assets/d3b0b014-f7e6-4edc-815a-2e868a1c34ea" />
 
-  Example consumers in the sample: quirc (QR) and edge detection.  
 
-
-## ⏱️ Rendimiento y límites
+## ⏱️ Performance and limits
 - **Vulkan-only** en Android.  
 - Prefer the **shader path** (material using `YUVUtils.ush`) for YUV to RGB conversion instead of CPU conversion.
-- If you set a rotation different to `EAndroidCamera2RotationMode::R0` the Java side rotates frames using the **yuvlib**; measured overhead was **~1.7ms/frame** at 1920x1080 resolution on Snapdragon 7+ Gen2 Mobile(12 GB RAM).  
+- If you set a rotation different to `EAndroidCamera2RotationMode::R0` the Java side rotates frames using the **yuvlib**; measured overhead for frame rotation was **~1.7ms/frame** at 1920x1080 resolution on Snapdragon 7+ Gen2 Mobile(12 GB RAM).  
   Use Android ATrace to measure overhead on packaging of raw camera data to yuv I420 + frame rotation:
   - **Seccion name**: `packtoI420Lib` (created with `android.os.Trace.beginSecction(...)`/`endSection()`).
   - Capture with **Perfetto/Systrace** and divide total time by number of frames to estimate per-frame overhead.
