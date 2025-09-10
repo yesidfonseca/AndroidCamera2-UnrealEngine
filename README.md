@@ -47,6 +47,7 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 > **Privacy & safety > App permissions > Headset cameras**
 
 A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3).
+![a13079942043d444252e34dc38c1c157](https://github.com/user-attachments/assets/f195719e-4aaf-4d4d-b8ce-37008d15cbc6)
 
 ## 🚀 Getting Started
 
