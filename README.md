@@ -48,6 +48,9 @@ By default the plugin will require `android.permission.CAMERA` permisson.
 
 A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github.com/yesidfonseca/Camera2AndroidApi/tree/Passthrough_Quest3).
 
+![a13079942043d444252e34dc38c1c157](https://github.com/user-attachments/assets/5399061d-0d0a-4dec-8f33-9128f23da8d2)
+
+
 ## 🚀 Getting Started
 
 1. **Install**: place the plugin folder under `YourProject/Plugins/AndroidCamera2/`.
