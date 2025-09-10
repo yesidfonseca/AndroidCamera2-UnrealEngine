@@ -50,8 +50,6 @@ A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github
 ![a13079942043d444252e34dc38c1c157](https://github.com/user-attachments/assets/f195719e-4aaf-4d4d-b8ce-37008d15cbc6)
 ![101626d7427db6e142aef4dee8a43b5d mp4 (4)](https://github.com/user-attachments/assets/d0ef16cb-c1c4-4324-9d3c-fe9822ca776c)
 
-![a13079942043d444252e34dc38c1c157](https://github.com/user-attachments/assets/5399061d-0d0a-4dec-8f33-9128f23da8d2)
-
 
 ## 🚀 Getting Started
 
