@@ -57,9 +57,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Render and Buffering Settings", meta = (DisplayName = "Cr Plane (Chroma red-difference)"))
     FAndroidCamera2OutputDataSettings RenderTargetDataVPlane = FAndroidCamera2OutputDataSettings();
 
-	UPROPERTY(config, EditAnywhere, Category = "Global Render Settings", meta = (DisplayName = "Auto Update Render Targets"))
-	bool bAutoUpdateRenderTargets = true;
-
     UPROPERTY(config, EditAnywhere, Category = "Camera Settings", meta = (DisplayName = "Time Out in seconds of camera after initizialization"))
     float CameraTimeOut = 5.f;
 
