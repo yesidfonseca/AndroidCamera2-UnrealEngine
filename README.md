@@ -63,7 +63,7 @@ A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github
   The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V) planes. You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
 
 - **Raw buffers**  
-  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Ensure **`bCaptureBuffer`** be enable. (You can capture whitout rendering).
+  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). You can capture buffers for own purposes without rendering and you can rendering without copying of buffers.
 
 Settings Path:  
   **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**  
