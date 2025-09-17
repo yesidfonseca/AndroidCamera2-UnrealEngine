@@ -78,7 +78,11 @@ Settings Path:
   Use Android ATrace to measure overhead on packaging of raw camera data to yuv I420 + frame rotation:
   - **Seccion name**: `packtoI420Lib` (created with `android.os.Trace.beginSecction(...)`/`endSection()`).
   - Capture with **Perfetto/Systrace** and divide total time by number of frames to estimate per-frame overhead.
+- Run `stat AndroidCamera2` in the UE console to monitor performance:
+  - GameThread / RenderThread cycle stats for UploadI420_TickFetch.
+  - Float counters showing percentage of frames with spikes >2 ms (CPU / GPU) in a 1-second window.
 
+This helps measure per-frame overhead of camera data packaging, YUV→RGB conversion, and rotation costs.
 ## 🛠️ Project Structure (high level)
 ```
 AndroidCamera2 (plugin)
