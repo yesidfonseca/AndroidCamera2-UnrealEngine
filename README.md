@@ -67,7 +67,8 @@ A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github
 
 Settings Path:  
   **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**  
-  <img width="793" height="709" alt="image" src="https://github.com/user-attachments/assets/d3b0b014-f7e6-4edc-815a-2e868a1c34ea" />
+  <img width="726" height="647" alt="image" src="https://github.com/user-attachments/assets/68a5551a-79b3-4ca8-bfd4-ae0e1bac33b4" />
+
 
 
 ## ⏱️ Performance and limits
