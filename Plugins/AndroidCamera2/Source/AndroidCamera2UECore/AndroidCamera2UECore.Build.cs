@@ -19,7 +19,8 @@ public class AndroidCamera2UECore : ModuleRules
             "RHI",
             "Projects",   
 			"RenderCore",  
-            "DeveloperSettings"
+            "DeveloperSettings",
+            "MediaUtils"
         });
 
 
