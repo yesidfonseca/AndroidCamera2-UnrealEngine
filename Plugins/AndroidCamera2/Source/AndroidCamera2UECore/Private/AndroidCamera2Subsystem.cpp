@@ -4,42 +4,278 @@
 
 #include "AndroidCamera2Subsystem.h"
 #include "AndroidCamera2Settings.h"
+#include "Stats/Stats.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "IMediaClockSink.h"
+#include "IMediaModule.h"
+#include "IMediaClock.h"
 
 #if PLATFORM_ANDROID
 #include "AndroidCamera2Java.h"
 #endif
 
+DECLARE_STATS_GROUP(TEXT("AndroidCamera2"), STATGROUP_AndroidCamera2, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("Upload Media TickFetch - GameThread (CPU)"), STAT_UploadI420_TickFetch_GT, STATGROUP_AndroidCamera2);
+DECLARE_CYCLE_STAT(TEXT("Upload Media TickFetch - RenderThread (GPU)"), STAT_UploadI420_TickFetch_RT, STATGROUP_AndroidCamera2);
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("1. Upload Media TickFetch - RenderThread spikes >2ms in 1 sec [%]"), STAT_MediaTickFetchGPUSpikesPct_1s, STATGROUP_AndroidCamera2,);
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("1. Upload Media TickFetch - GameThread spikes >2ms in 1 sec [%]"), STAT_MediaTickFetchCPUSpikesPct_1s, STATGROUP_AndroidCamera2, );
+DEFINE_STAT(STAT_MediaTickFetchGPUSpikesPct_1s);
+DEFINE_STAT(STAT_MediaTickFetchCPUSpikesPct_1s);
+
+struct FRollingSpikeCounter
+{
+    double WindowSec;
+    int32  NumBuckets;
+    uint64 BucketCycles;
+
+    TArray<int32> Frames;
+    TArray<int32> Spikes;
+    uint64 CurrentBucketId = 0;
+
+    explicit FRollingSpikeCounter(double InWindowSec, int32 InBuckets)
+        : WindowSec(InWindowSec)
+        , NumBuckets(FMath::Max(1, InBuckets))
+        , BucketCycles(InWindowSec / FMath::Max(1.0, (double)InBuckets)/ FPlatformTime::GetSecondsPerCycle64())
+    {
+        Frames.Init(0, NumBuckets);
+        Spikes.Init(0, NumBuckets);
+    }
+
+    void AddSample(bool bSpike, int64 NowCycles)
+    {
+        const uint64 BucketId = (NowCycles / BucketCycles);
+        const int32 Idx = (int32)(BucketId % NumBuckets);
+        if (BucketId != CurrentBucketId)
+        {
+            Frames[Idx] = 0;
+            Spikes[Idx] = 0;
+            CurrentBucketId = BucketId;
+        }
+
+        Frames[Idx] += 1;
+        if (bSpike) Spikes[Idx] += 1;
+    }
+
+    float GetPercent() const
+    {
+        uint32 F = 0, S = 0;
+        for (int32 i = 0; i < NumBuckets; ++i) { F += Frames[i]; S += Spikes[i]; }
+        return (F > 0) ? 100.0f * (float(S) / float(F)) : 0.0f;
+    }
+};
+
+class FAndroidCamera2ThreadSafe
+{
+public:
+
+    TArray<uint8> YBuffer, UBuffer, VBuffer;
+    void* yJavaBuffer = nullptr;
+    void* uJavaBuffer = nullptr;
+    void* vJavaBuffer = nullptr;
+    bool bRenderYRT = false, bRenderURT = false, bRenderVRT = false;
+    bool bUpdateYBuffer = false, bUpdateUBuffer = false, bUpdateVBuffer = false;
+
+#if PLATFORM_ANDROID
+    TSharedPtr<FAndroidCamera2Java, ESPMode::ThreadSafe> AndroidCamera2Java;
+#endif
+
+    int32 Width = 0, Height = 0;
+    int64 Timestamp = 0;
+    bool bOnRenderQueued{ false };
+    void CheckBuffersSize(int32 InWidth, int32 InHeight)
+    {
+        if (InWidth <= 0 || InHeight <= 0) return;
+        if (YBuffer.Num() != InWidth * InHeight)
+        {
+            Width = InWidth;
+            Height = InHeight;
+            if(bUpdateYBuffer)
+                YBuffer.SetNumUninitialized(Width * Height, EAllowShrinking::No);
+			if (bUpdateUBuffer)
+                UBuffer.SetNumUninitialized((Width / 2) * (Height / 2), EAllowShrinking::No);
+            if(bUpdateVBuffer)
+                VBuffer.SetNumUninitialized((Width / 2) * (Height / 2), EAllowShrinking::No);
+        }
+    }
+
+    FAndroidCamera2ThreadSafe()
+        : Width(0)
+        , Height(0)
+        , Timestamp(0)
+    {
+#if PLATFORM_ANDROID
+        AndroidCamera2Java = MakeShared<FAndroidCamera2Java, ESPMode::ThreadSafe>();
+#endif
+    }
+
+    void GetLastFrameInfo()
+    {
+        if (bOnRenderQueued && GetJavaLastFrameTimeStamp() == Timestamp)
+            return;
+
+#if PLATFORM_ANDROID
+        
+        int32 imgWidth = 0;
+        int32 imgHeight = 0;
+
+        AndroidCamera2Java->GetLastPreviewFrameInfo(yJavaBuffer, uJavaBuffer, vJavaBuffer, imgWidth, imgHeight, Timestamp); //This call block java side updates on JavaBuffers
+        
+        CheckBuffersSize(imgWidth, imgHeight);
+
+        if (bUpdateYBuffer && yJavaBuffer)
+        {
+            const int32 BytesY = Width * Height;
+            FMemory::Memcpy(YBuffer.GetData(), yJavaBuffer, BytesY);
+        }
+
+        const int32 BytesUV = (Width * Height) / 4;
+        if (bUpdateUBuffer && uJavaBuffer)
+        {
+            FMemory::Memcpy(UBuffer.GetData(), uJavaBuffer, BytesUV);
+        }
+
+        if (bUpdateVBuffer && vJavaBuffer)
+        {
+            FMemory::Memcpy(VBuffer.GetData(), vJavaBuffer, BytesUV);
+        }
+
+        if (!bRenderYRT && !bRenderURT && !bRenderVRT)
+        {
+            AndroidCamera2Java->ReleaseLastPreviewFrameInfo();
+        }
+#endif
+    }
+
+    void UnblockJavaBuffers()
+    {
+        bOnRenderQueued = false;
+#if PLATFORM_ANDROID
+       
+        AndroidCamera2Java->ReleaseLastPreviewFrameInfo();
+#endif
+    }
+
+    bool GetInitilizedCamaraState() const
+    {
+#if PLATFORM_ANDROID
+        return AndroidCamera2Java->GetInitilizedCamaraState();
+#endif
+		return false;
+    }
+
+    void ReleaseCamera()
+    {
+        
+#if PLATFORM_ANDROID
+        AndroidCamera2Java->Release();
+#endif
+    }
+
+	int64 GetJavaLastFrameTimeStamp() const 
+    { 
+#if PLATFORM_ANDROID
+        return AndroidCamera2Java->GetLastFrameTimeStamp();
+#endif
+        return Timestamp; 
+    }
+
+    void EnsureRT_G8(UTextureRenderTarget2D* RT, int32 W, int32 H)
+    {
+        if (!IsValid(RT)) return;
+        const bool bFormatOK = (RT->GetFormat() == PF_G8);
+        const bool bSizeOK = (RT->SizeX == W && RT->SizeY == H);
+        if (!bFormatOK || !bSizeOK)
+        {
+            RT->InitCustomFormat(W, H, PF_G8, /*bForceLinearGamma*/ false);
+        }
+    };
+
+
+    TArray<FString> GetCameraIdList()
+    {
+        TArray<FString>CameraList = TArray<FString>();
+
+#if PLATFORM_ANDROID
+        CameraList = AndroidCamera2Java->GetCameraIdList();      
+#endif
+
+        return CameraList;
+    }
+
+    bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
+        EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 targetFPS)
+    {
+#if PLATFORM_ANDROID
+        AndroidCamera2Java->Release();
+        return AndroidCamera2Java->InitializeCamera(
+            CameraId,
+            static_cast<uint8>(AEMode),
+            static_cast<uint8>(AFMode),
+            static_cast<uint8>(AWBMode),
+            static_cast<uint8>(ControlMode),
+            static_cast<uint8>(RotMode),
+            previewWidth,
+            previewHeight,
+            previewWidth,   //TODO: missing functionality for stillCapure
+            previewHeight,  //TODO: missing functionality for stillCapure
+            targetFPS
+        );
+#endif
+        return false;
+    }
+
+};
+
+
+class FAndroidCamera2ClockSink
+    : public IMediaClockSink
+{
+public:
+
+    FAndroidCamera2ClockSink(UAndroidCamera2Subsystem& InOwner)
+        : Owner(InOwner)
+    {
+    }
+
+    virtual ~FAndroidCamera2ClockSink() {}
+
+public:
+
+    virtual void TickFetch(FTimespan DeltaTime, FTimespan Timecode) override
+    {
+        Owner.TickFetch(DeltaTime);
+    }
+
+private:
+
+    UAndroidCamera2Subsystem& Owner;
+};
+
+
+
 void UAndroidCamera2Subsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	UAndroidCamera2Settings* AC2Settings = GetMutableDefault<UAndroidCamera2Settings>();
-	bAutoUpdateRenderTargets = AC2Settings->bAutoUpdateRenderTargets;
 
-#if PLATFORM_ANDROID
-    IsValidAC2J();
-#endif
+    AndroidCamera2 = MakeShared<FAndroidCamera2ThreadSafe, ESPMode::ThreadSafe>();
 
-	y_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataYPlane.RenderTarget2D);
-	u_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataUPlane.RenderTarget2D);
-	v_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataVPlane.RenderTarget2D);
-	bUpdateYBuffer = AC2Settings->RenderTargetDataYPlane.bCaptureBuffer;
-	bUpdateUBuffer = AC2Settings->RenderTargetDataUPlane.bCaptureBuffer;
-	bUpdateVBuffer = AC2Settings->RenderTargetDataVPlane.bCaptureBuffer;
-	bRenderYRT = (y_RT2D != nullptr) && AC2Settings->RenderTargetDataYPlane.bRender && bUpdateYBuffer;
-	bRenderURT = (u_RT2D != nullptr) && AC2Settings->RenderTargetDataUPlane.bRender && bUpdateUBuffer;
-	bRenderVRT = (v_RT2D != nullptr) && AC2Settings->RenderTargetDataVPlane.bRender && bUpdateVBuffer;
+    y_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataYPlane.RenderTarget2D);
+    u_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataUPlane.RenderTarget2D);
+    v_RT2D = ValidateRenderTarget(AC2Settings->RenderTargetDataVPlane.RenderTarget2D);
+    AndroidCamera2->bUpdateYBuffer = AC2Settings->RenderTargetDataYPlane.bCaptureBuffer;
+    AndroidCamera2->bUpdateUBuffer = AC2Settings->RenderTargetDataUPlane.bCaptureBuffer;
+    AndroidCamera2->bUpdateVBuffer = AC2Settings->RenderTargetDataVPlane.bCaptureBuffer;
+    AndroidCamera2->bRenderYRT = (y_RT2D != nullptr) && AC2Settings->RenderTargetDataYPlane.bRender;
+    AndroidCamera2->bRenderURT = (u_RT2D != nullptr) && AC2Settings->RenderTargetDataUPlane.bRender;
+    AndroidCamera2->bRenderVRT = (v_RT2D != nullptr) && AC2Settings->RenderTargetDataVPlane.bRender;
 
 	CameraTimeout = AC2Settings->CameraTimeOut;
 }
 
 void UAndroidCamera2Subsystem::Deinitialize()
 {
-#if PLATFORM_ANDROID
-    if (IsValidAC2J())
-    {
-		AndroidCamera2Java->Release();
-    }
-#endif
+	AndroidCamera2->ReleaseCamera();
+
 }
 
 UTextureRenderTarget2D* UAndroidCamera2Subsystem::ValidateRenderTarget(TSoftObjectPtr<UTextureRenderTarget2D> RenderTarget2D)
@@ -70,14 +306,13 @@ bool UAndroidCamera2Subsystem::GetLuminanceBufferPtr(const uint8*& OutPtr,
     int32& OutHeight,
     int64& OutTimestamp) const
 {
-    check(IsInGameThread()); 
-    if (CurrentWidth <= 0 || CurrentHeight <= 0 || YBuffer.Num() == 0)
+    if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
         return false;
 
-    OutPtr = YBuffer.GetData();  
-    OutWidth = CurrentWidth;
-    OutHeight = CurrentHeight;
-    OutTimestamp = LastFrameTimestamp; 
+    OutPtr = AndroidCamera2->YBuffer.GetData();
+    OutWidth = AndroidCamera2->Width;
+    OutHeight = AndroidCamera2->Height;
+    OutTimestamp = AndroidCamera2->Timestamp;
 
     return true;
 }
@@ -87,15 +322,13 @@ bool UAndroidCamera2Subsystem::GetCbChromaBufferPtr(const uint8*& OutPtr,
     int32& OutHeight,
     int64& OutTimestamp) const
 {
-    check(IsInGameThread());
-
-    if (CurrentWidth <= 0 || CurrentHeight <= 0 || YBuffer.Num() == 0)
+    if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
         return false;
 
-    OutPtr = UBuffer.GetData();
-    OutWidth = CurrentWidth/2;
-    OutHeight = CurrentHeight/2;
-    OutTimestamp = LastFrameTimestamp;
+    OutPtr = AndroidCamera2->UBuffer.GetData();
+    OutWidth = AndroidCamera2->Width/2;
+    OutHeight = AndroidCamera2->Height/2;
+    OutTimestamp = AndroidCamera2->Timestamp;
 
     return true;
 }
@@ -105,15 +338,14 @@ bool UAndroidCamera2Subsystem::GetCrChromaBufferPtr(const uint8*& OutPtr,
     int32& OutHeight,
     int64& OutTimestamp) const
 {
-    check(IsInGameThread());
 
-    if (CurrentWidth <= 0 || CurrentHeight <= 0 || YBuffer.Num() == 0)
+    if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
         return false;
 
-    OutPtr = VBuffer.GetData();
-    OutWidth = CurrentWidth / 2;
-    OutHeight = CurrentHeight / 2;
-    OutTimestamp = LastFrameTimestamp;
+    OutPtr = AndroidCamera2->VBuffer.GetData();
+    OutWidth = AndroidCamera2->Width / 2;
+    OutHeight = AndroidCamera2->Height / 2;
+    OutTimestamp = AndroidCamera2->Timestamp;
 
     return true;
 }
@@ -126,7 +358,7 @@ void UAndroidCamera2Subsystem::SetCameraTimeout(float NewTimeout)
 
 void UAndroidCamera2Subsystem::PauseCamera()
 {
-    if (CameraState == EAndroidCamera2State::INITIALIZED && bAutoUpdateRenderTargets)
+    if (CameraState == EAndroidCamera2State::INITIALIZED)
     {        
         CameraState = EAndroidCamera2State::PAUSED;
 	}
@@ -134,40 +366,53 @@ void UAndroidCamera2Subsystem::PauseCamera()
 
 void UAndroidCamera2Subsystem::ResumeCamera()
 {
-    if (CameraState == EAndroidCamera2State::PAUSED && bAutoUpdateRenderTargets)
+    if (CameraState == EAndroidCamera2State::PAUSED)
     {
-#if PLATFORM_ANDROID
-        if (AndroidCamera2Java->GetInitilizedCamaraState())
+        if (AndroidCamera2->GetInitilizedCamaraState())
         {
             CameraState = EAndroidCamera2State::INITIALIZED;
-        }
-#endif        
+        }    
     }
 }
 
 void UAndroidCamera2Subsystem::StopCamera()
 {
-#if PLATFORM_ANDROID
-    if (AndroidCamera2Java->GetInitilizedCamaraState())
+    if (AndroidCamera2->GetInitilizedCamaraState())
     {
-        AndroidCamera2Java->Release();
+        AndroidCamera2->ReleaseCamera();
     }	
-#endif
     CameraState = EAndroidCamera2State::OFF;
+
+    
+    if (ClockSink.IsValid())
+    {
+        IMediaModule* MediaModule = FModuleManager::LoadModulePtr<IMediaModule>("Media");
+        if (MediaModule)
+        {
+            MediaModule->GetClock().RemoveSink(ClockSink.ToSharedRef());
+            ClockSink.Reset();
+        }
+    }
 }
 
 
-void UAndroidCamera2Subsystem::Tick(float DeltaSeconds)
+UAndroidCamera2Subsystem::UAndroidCamera2Subsystem()
 {
-    
+
+}
+
+void UAndroidCamera2Subsystem::TickFetch(FTimespan DeltaTime)
+{
+    SCOPE_CYCLE_COUNTER(STAT_UploadI420_TickFetch_GT);
+    const uint64 T0 = FPlatformTime::Cycles64();
     switch (CameraState)
     {
 	case EAndroidCamera2State::OFF:
 		break;
-#if PLATFORM_ANDROID
+
     case EAndroidCamera2State::WAITING_INIT: // Waiting for Initialization
-		CameraTimeLeftAfterInitialization -= DeltaSeconds;
-        if (AndroidCamera2Java->GetInitilizedCamaraState())
+        CameraTimeLeftAfterInitialization -= DeltaTime.GetTotalSeconds();
+        if (AndroidCamera2->GetInitilizedCamaraState())
         {
 			CameraState = EAndroidCamera2State::INITIALIZED; // Initialized
         }
@@ -177,230 +422,127 @@ void UAndroidCamera2Subsystem::Tick(float DeltaSeconds)
         }
         break;
 	case EAndroidCamera2State::INITIALIZED: // Initialized
-        if (bAutoUpdateRenderTargets )
-        {
-            if (LastFrameTimestamp != AndroidCamera2Java->GetLastFrameTimeStamp())
-            {
-                GetLastFrameInfo();
-                UpdateRenderTextures();                
-            }            
-        }
+       
+        AndroidCamera2->GetLastFrameInfo();
+        UpdateRenderTextures();
+       
         break;
-#endif
+
     default:
         break;
     }
+
+	const uint64 T1 = FPlatformTime::Cycles64();
+
+    static FRollingSpikeCounter GT_W1s(1.0, 10);   // 10 buckets de 100 ms
+
+    const bool bSpike =  FPlatformTime::ToMilliseconds64(T1 - T0) > 2.0f;
+
+    GT_W1s.AddSample(bSpike, T0);
+    SET_FLOAT_STAT(STAT_MediaTickFetchCPUSpikesPct_1s, GT_W1s.GetPercent());
     
-    
-}
-
-bool UAndroidCamera2Subsystem::IsValidAC2J()
-{
-    bool bIsValid = false;
-
-#if PLATFORM_ANDROID
-    if (AndroidCamera2Java.IsValid())
-    {
-        bIsValid = true;
-    }
-    else
-    {
-        AndroidCamera2Java = MakeShared<FAndroidCamera2Java, ESPMode::ThreadSafe>();
-    }
-
-    bIsValid = AndroidCamera2Java.IsValid();
-
-#endif
-
-    return bIsValid;
 }
 
 TArray<FString> UAndroidCamera2Subsystem::GetCameraIdList()
 {
-    TArray<FString>CameraList = TArray<FString>();
-
-#if PLATFORM_ANDROID
-    if (IsValidAC2J())
-    {
-        CameraList = AndroidCamera2Java->GetCameraIdList();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UAndroidCamera2Subsystem::GetCameraIdList: AndroidCamera2Java is not valid!"));
-    }
-#endif
-
-    return CameraList;
+    return AndroidCamera2->GetCameraIdList();
 }
 
-void UAndroidCamera2Subsystem::GetLastFrameInfo()
-{
-#if PLATFORM_ANDROID
-    if (IsValidAC2J())
-    {
-        void* yBufferTemp = nullptr;
-        void* uBufferTemp = nullptr;
-        void* vBufferTemp = nullptr;
-        int32 imgWidth = 0;
-        int32 imgHeight = 0;
 
-        AndroidCamera2Java->GetLastPreviewFrameInfo(yBufferTemp, uBufferTemp, vBufferTemp, imgWidth, imgHeight, LastFrameTimestamp);
-
-		CurrentWidth = imgWidth;
-		CurrentHeight = imgHeight;
-        
-        if (bUpdateYBuffer)
-        {
-            const int32 BytesY = imgWidth * imgHeight; 
-            if(YBuffer.Num() != BytesY)
-            {
-                YBuffer.SetNumUninitialized(BytesY);
-			}
-
-            
-            
-            FMemory::Memcpy(YBuffer.GetData(), yBufferTemp, BytesY);
-        }
-
-        const int32 BytesUV = (imgWidth * imgHeight)/4; 
-        if (bUpdateUBuffer)
-        {
-            if (UBuffer.Num() != BytesUV)
-            {
-                UBuffer.SetNumUninitialized(BytesUV);
-            }
-
-            FMemory::Memcpy(UBuffer.GetData(), uBufferTemp, BytesUV);
-        }
-
-        if (bUpdateVBuffer)
-        {
-            if (VBuffer.Num() != BytesUV)
-            {
-                VBuffer.SetNumUninitialized(BytesUV);
-            }
-
-            FMemory::Memcpy(VBuffer.GetData(), vBufferTemp, BytesUV);
-        }
-
-        AndroidCamera2Java->ReleaseLastPreviewFrameInfo();
-
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UAndroidCamera2Subsystem::GetLastFrameInfo: AndroidCamera2Java is not valid!"));
-    }
-#endif
-}
 
 void UAndroidCamera2Subsystem::UpdateRenderTextures()
 {
     check(IsInGameThread());
 
-    const bool bDoY = (IsValid(y_RT2D) && bRenderYRT && CurrentWidth > 0 && CurrentHeight > 0);
-    const bool bDoU = (IsValid(u_RT2D) && bRenderURT && CurrentWidth > 0 && CurrentHeight > 0);
-    const bool bDoV = (IsValid(v_RT2D) && bRenderVRT && CurrentWidth > 0 && CurrentHeight > 0);
+    if (AndroidCamera2->bOnRenderQueued)
+        return;
 
-    if (!(bDoY || bDoU || bDoV)) return;
+    const bool bDoY = (IsValid(y_RT2D) && AndroidCamera2->bRenderYRT && AndroidCamera2->yJavaBuffer && AndroidCamera2->Width > 0 && AndroidCamera2->Height > 0);
+    const bool bDoU = (IsValid(u_RT2D) && AndroidCamera2->bRenderURT && AndroidCamera2->uJavaBuffer && AndroidCamera2->Width > 0 && AndroidCamera2->Height > 0);
+    const bool bDoV = (IsValid(v_RT2D) && AndroidCamera2->bRenderVRT && AndroidCamera2->vJavaBuffer && AndroidCamera2->Width > 0 && AndroidCamera2->Height > 0);
 
-    auto EnsureRT_G8 = [](UTextureRenderTarget2D* RT, int32 W, int32 H)
-        {
-            if (!IsValid(RT)) return;
-            const bool bFormatOK = (RT->GetFormat() == PF_G8);
-            const bool bSizeOK = (RT->SizeX == W && RT->SizeY == H);
-            if (!bFormatOK || !bSizeOK)
-            {
-                RT->InitCustomFormat(W, H, PF_G8, /*bForceLinearGamma*/ false);
-            }
-        };
+    if (bDoY) { AndroidCamera2->EnsureRT_G8(y_RT2D, AndroidCamera2->Width, AndroidCamera2->Height); }
+    if (bDoU) { AndroidCamera2->EnsureRT_G8(u_RT2D, AndroidCamera2->Width / 2, AndroidCamera2->Height / 2); }
+    if (bDoV) { AndroidCamera2->EnsureRT_G8(v_RT2D, AndroidCamera2->Width / 2, AndroidCamera2->Height / 2); }
 
-    if (bDoY) { EnsureRT_G8(y_RT2D, CurrentWidth, CurrentHeight); }
-    if (bDoU) { EnsureRT_G8(u_RT2D, CurrentWidth/2, CurrentHeight/2); }
-    if (bDoV) { EnsureRT_G8(v_RT2D, CurrentWidth/2, CurrentHeight/2); }
-    
-    
-    // 3) Recursos RHI 
+
     FTextureRenderTargetResource* RTResY = bDoY ? y_RT2D->GameThread_GetRenderTargetResource() : nullptr;
     FTextureRenderTargetResource* RTResU = bDoU ? u_RT2D->GameThread_GetRenderTargetResource() : nullptr;
     FTextureRenderTargetResource* RTResV = bDoV ? v_RT2D->GameThread_GetRenderTargetResource() : nullptr;
 
+    if (RTResY == nullptr && RTResU == nullptr && RTResV == nullptr)
+    {
+        AndroidCamera2->UnblockJavaBuffers();
+    }
 
-    // 4) Un único ENQUEUE para subir todos los planos disponibles
+    const uint8* YPtr = static_cast<const uint8*>(AndroidCamera2->yJavaBuffer);
+    const uint8* UPtr = static_cast<const uint8*>(AndroidCamera2->uJavaBuffer);
+    const uint8* VPtr = static_cast<const uint8*>(AndroidCamera2->vJavaBuffer);
+
+    AndroidCamera2->bOnRenderQueued = true;
     ENQUEUE_RENDER_COMMAND(UploadI420_All)(
-        [RTResY, RTResU, RTResV,
-        StagingY = TArray<uint8>(YBuffer),
-        StagingU = TArray<uint8>(UBuffer),
-        StagingV = TArray<uint8>(VBuffer),
-        W = CurrentWidth, H = CurrentHeight](FRHICommandListImmediate& RHICmd)
+        [AndroidCam2 = AndroidCamera2, RTResY, RTResU, RTResV, YPtr, UPtr, VPtr, W = AndroidCamera2->Width, H = AndroidCamera2->Height](FRHICommandListImmediate& RHICmd)
         {
-            auto UploadPlane = [&RHICmd](FTextureRenderTargetResource* RTRes, const uint8* Src, int32 W, int32 H)
-                {
-                    if (!RTRes || !Src) return;
-                    FRHITexture* RHITexture = RTRes->GetRenderTargetTexture();
-                    if (!RHITexture) return;
-                    FRHITexture2D* RHITexture2D = RHITexture->GetTexture2D();
-                    if (!RHITexture2D) return;
+            SCOPE_CYCLE_COUNTER(STAT_UploadI420_TickFetch_RT);
 
-                    uint32 DestStride = 0;
-                    void* DestPtr = RHILockTexture2D(RHITexture2D, /*Mip*/0, RLM_WriteOnly, DestStride, /*bLockWithinMiptail*/ false);
-                    if (!DestPtr) return;
+            const uint64 T0 = FPlatformTime::Cycles64();
 
-                    uint8* Dst = static_cast<uint8*>(DestPtr);
-                    const uint32 RowBytes = static_cast<uint32>(W); // 1 byte/px
-
-                    for (int32 y = 0; y < H; ++y)
-                    {
-                        FMemory::Memcpy(Dst + y * DestStride, Src + y * RowBytes, RowBytes);
-                    }
-
-                    RHICmd.UnlockTexture2D(RHITexture2D, /*Mip*/0, /*bLockWithinMiptail*/ false, /*bFlushRHIThread*/ true);
-                };
-
-            if (!StagingY.IsEmpty())
+            if (AndroidCam2->yJavaBuffer)
             {
-                UploadPlane(RTResY, StagingY.GetData(), W, H);
+                UAndroidCamera2Subsystem::UpdatePlaneTexture_RenderThread(RHICmd, RTResY, YPtr, W, H);
             }
-            if (!StagingU.IsEmpty())
+            
+            if (AndroidCam2->uJavaBuffer)
             {
-                UploadPlane(RTResU, StagingU.GetData(), W/2, H/2);
+                UAndroidCamera2Subsystem::UpdatePlaneTexture_RenderThread(RHICmd, RTResU, UPtr, W/ 2, H/ 2);
             }
-            if (!StagingV.IsEmpty())
+            if (AndroidCam2->vJavaBuffer)
             {
-                UploadPlane(RTResV, StagingV.GetData(), W/2, H/2);
+                UAndroidCamera2Subsystem::UpdatePlaneTexture_RenderThread(RHICmd, RTResV, VPtr, W/ 2, H/ 2);
             }
+
+            AndroidCam2->UnblockJavaBuffers();
+
+            const uint64 T1 = FPlatformTime::Cycles64();
+            
+            static FRollingSpikeCounter RT_W1s(1.0, 10);   // 10 buckets de 100 ms
+
+            const bool bSpike = FPlatformTime::ToMilliseconds64(T1 - T0) >2.0f;
+
+            RT_W1s.AddSample(bSpike, T0);
+            SET_FLOAT_STAT(STAT_MediaTickFetchGPUSpikesPct_1s, RT_W1s.GetPercent());
         }
         );
+
+}
+
+void UAndroidCamera2Subsystem::UpdatePlaneTexture_RenderThread(FRHICommandListImmediate& RHICmd, FTextureRenderTargetResource* RTRes, const uint8* Src, int32 W, int32 H)
+{
+    if (!RTRes || !Src) return;
+    FRHITexture* RHITexture = RTRes->GetRenderTargetTexture();
+    if (!RHITexture) return;
+    FRHITexture2D* RHITexture2D = RHITexture->GetTexture2D();
+    if (!RHITexture2D) return;
+    const FUpdateTextureRegion2D Region(0, 0, 0, 0, W, H);
+    RHICmd.UpdateTexture2D(RHITexture2D, /*Mip*/0, Region, (uint32)W, Src);
 }
 
 bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
     EAndroidCamera2RotationMode RotMode, int32 previewWidth, int32 previewHeight, int32 targetFPS)
 {
+    
+    CameraState = AndroidCamera2->InitializeCamera(
+        CameraId,AEMode,AFMode,AWBMode,ControlMode,RotMode, previewWidth, previewHeight,  targetFPS) ? EAndroidCamera2State::INITIALIZED : EAndroidCamera2State::FAIL_INIT; // Waiting for Initialization
+    CameraTimeLeftAfterInitialization = CameraTimeout;
 
-#if PLATFORM_ANDROID
-    if (IsValidAC2J())
-    {
-		AndroidCamera2Java->Release(); 
-		CameraState = AndroidCamera2Java->InitializeCamera(
-            CameraId,
-            static_cast<uint8>(AEMode),
-            static_cast<uint8>(AFMode),
-            static_cast<uint8>(AWBMode),
-            static_cast<uint8>(ControlMode),
-            static_cast<uint8>(RotMode),
-            previewWidth,
-            previewHeight,
-            previewWidth,   //TODO: missing functionality for stillCapure
-            previewHeight,  //TODO: missing functionality for stillCapure
-            targetFPS
-        )? EAndroidCamera2State::INITIALIZED : EAndroidCamera2State::FAIL_INIT; // Waiting for Initialization
-		CameraTimeLeftAfterInitialization = CameraTimeout;
-		return CameraState == EAndroidCamera2State::INITIALIZED;
 
-    }
-    else
+    if (CameraState == EAndroidCamera2State::INITIALIZED)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UAndroidCamera2Subsystem::InitializeCamera: AndroidCamera2Java is not valid!"));
+        ClockSink = MakeShared<FAndroidCamera2ClockSink, ESPMode::ThreadSafe>(*this);
+        IMediaModule* MediaModule = FModuleManager::LoadModulePtr<IMediaModule>("Media");
+        MediaModule->GetClock().AddSink(ClockSink.ToSharedRef());
     }
-#endif
-    return false;
+
+    return CameraState == EAndroidCamera2State::INITIALIZED;
 }
+

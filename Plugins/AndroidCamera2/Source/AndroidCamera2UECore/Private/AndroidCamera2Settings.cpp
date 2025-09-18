@@ -21,26 +21,5 @@ UAndroidCamera2Settings::UAndroidCamera2Settings()
 void UAndroidCamera2Settings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
     Super::PostEditChangeProperty(PropertyChangedEvent);
-
-    const FName PropertyName = PropertyChangedEvent.Property
-        ? PropertyChangedEvent.Property->GetFName()
-        : NAME_None;
-    if (PropertyName == GET_MEMBER_NAME_CHECKED(FAndroidCamera2OutputDataSettings, bCaptureBuffer))
-    {
-        // Normalizar separadores de ruta
-        RenderTargetDataYPlane.bRender = RenderTargetDataYPlane.bRender && RenderTargetDataYPlane.bCaptureBuffer;
-        RenderTargetDataUPlane.bRender = RenderTargetDataUPlane.bRender && RenderTargetDataUPlane.bCaptureBuffer;
-        RenderTargetDataVPlane.bRender = RenderTargetDataVPlane.bRender && RenderTargetDataVPlane.bCaptureBuffer;
-
-        SaveConfig();
-    }
-    else if (PropertyName == GET_MEMBER_NAME_CHECKED(FAndroidCamera2OutputDataSettings, bRender))
-    {
-		RenderTargetDataYPlane.bCaptureBuffer = RenderTargetDataYPlane.bCaptureBuffer || RenderTargetDataYPlane.bRender;
-		RenderTargetDataUPlane.bCaptureBuffer = RenderTargetDataUPlane.bCaptureBuffer || RenderTargetDataUPlane.bRender;
-        RenderTargetDataVPlane.bCaptureBuffer = RenderTargetDataVPlane.bCaptureBuffer || RenderTargetDataVPlane.bRender;
-		SaveConfig(); 
-    }
-
 }
 #endif

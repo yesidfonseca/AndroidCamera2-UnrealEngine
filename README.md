@@ -64,11 +64,12 @@ A ready-to-run configuration lives in branch [Passthorugh_Quest3](https://github
   The plugin can auto-update the three `UTextureRenderTarget2D` (Y/U/V) planes. You can disable per-plane rendering updates or point the plugin to custom `UTextureRenderTarget2D`. 
 
 - **Raw buffers**  
-  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). Ensure **`bCaptureBuffer`** be enable. (You can capture whitout rendering).
+  Use `UAndroidCamera2Subsystem` to retrieve Y/U/V as tightly-packed byte buffers (ideal for computer vision). You can capture buffers for your own purposes without rendering them, and you can render them without copying buffers.
 
 Settings Path:  
   **Project Settings → Plugins → Android Camera2 → Render and Buffering Settings**  
-  <img width="793" height="709" alt="image" src="https://github.com/user-attachments/assets/d3b0b014-f7e6-4edc-815a-2e868a1c34ea" />
+  <img width="726" height="647" alt="image" src="https://github.com/user-attachments/assets/68a5551a-79b3-4ca8-bfd4-ae0e1bac33b4" />
+
 
 
 ## ⏱️ Performance and limits
@@ -78,7 +79,11 @@ Settings Path:
   Use Android ATrace to measure overhead on packaging of raw camera data to yuv I420 + frame rotation:
   - **Seccion name**: `packtoI420Lib` (created with `android.os.Trace.beginSecction(...)`/`endSection()`).
   - Capture with **Perfetto/Systrace** and divide total time by number of frames to estimate per-frame overhead.
+- Run `stat AndroidCamera2` in the UE console to monitor performance:
+  - GameThread / RenderThread cycle stats for UploadI420_TickFetch.
+  - Float counters showing percentage of frames with spikes >2 ms (CPU / GPU) in a 1-second window.
 
+This helps measure per-frame overhead of camera data packaging, YUV→RGB conversion, and rotation costs.
 ## 🛠️ Project Structure (high level)
 ```
 AndroidCamera2 (plugin)

@@ -5,15 +5,15 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Tickable.h" 
+#include "Templates/SharedPointer.h"
 
 
-#if PLATFORM_ANDROID
-class FAndroidCamera2Java;
-#endif
 
 #include "AndroidCamera2Subsystem.generated.h"
 
 class UTextureRenderTarget2D;
+class FAndroidCamera2ThreadSafe;
+class FAndroidCamera2ClockSink;
 
 UENUM(BlueprintType)
 enum class EAndroidCamera2State : uint8
@@ -85,9 +85,9 @@ enum class EAndroidCamera2RotationMode : uint8
 	RSensor = 4
 };
 
+
 UCLASS()
 class ANDROIDCAMERA2UECORE_API UAndroidCamera2Subsystem final : public UGameInstanceSubsystem
-                                , public FTickableGameObject
 {
     GENERATED_BODY()
 public:
@@ -95,17 +95,12 @@ public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
 
-	
 
-    virtual void Tick(float DeltaSeconds) override;
-    virtual TStatId GetStatId() const override
-    { RETURN_QUICK_DECLARE_CYCLE_STAT(UCamera2UESubsystem, STATGROUP_Tickables); }
-    virtual ETickableTickType GetTickableTickType() const override
-    { return ETickableTickType::Always; } 
-    virtual bool IsTickable() const override
-    { return true; } 
-    virtual bool IsTickableInEditor() const override
-    { return false; }
+	UAndroidCamera2Subsystem();
+
+
+    virtual void TickFetch(FTimespan DeltaTime);
+
 
 	//TODO: missing functionality for stillCapure
 	bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
@@ -114,9 +109,7 @@ public:
 	
     TArray<FString> GetCameraIdList();
 
-	void GetLastFrameInfo();
-
-	void UpdateRenderTextures();
+	
 
 	bool GetLuminanceBufferPtr(const uint8*& OutPtr, int32& OutWidth, int32& OutHeight, int64& OutTimestamp) const;
 
@@ -135,15 +128,9 @@ public:
 	void StopCamera();
 
 private:
-    bool bAutoUpdateRenderTargets = false;
-	int64 LastFrameTimestamp = 0;
 	EAndroidCamera2State CameraState = EAndroidCamera2State::OFF;
 
-#if PLATFORM_ANDROID
-    TSharedPtr<FAndroidCamera2Java, ESPMode::ThreadSafe> AndroidCamera2Java;
-#endif
 
-    bool IsValidAC2J();
 
 	float CameraTimeout = 5.0f; // seconds
 	float CameraTimeLeftAfterInitialization = 5.f;
@@ -151,18 +138,23 @@ private:
 	UPROPERTY() UTextureRenderTarget2D* y_RT2D = nullptr;
 	UPROPERTY() UTextureRenderTarget2D* u_RT2D = nullptr;
 	UPROPERTY() UTextureRenderTarget2D* v_RT2D = nullptr;
-	bool bRenderYRT = false;
-	bool bRenderURT = false;
-	bool bRenderVRT = false;
-	bool bUpdateYBuffer = false;
-	bool bUpdateUBuffer = false;
-	bool bUpdateVBuffer = false;
-	TArray<uint8> YBuffer;
-	TArray<uint8> UBuffer;
-	TArray<uint8> VBuffer;
-	int32 CurrentWidth = 0;
-	int32 CurrentHeight = 0;
+	
+	//TArray<uint8> YBuffer;
+	//TArray<uint8> UBuffer;
+	//TArray<uint8> VBuffer;
+	//int32 CurrentWidth = 0;
+	//int32 CurrentHeight = 0;
+
+	
+	TSharedPtr<FAndroidCamera2ThreadSafe, ESPMode::ThreadSafe> AndroidCamera2;
+
+	/** The recorder's media clock sink. */
+	TSharedPtr<FAndroidCamera2ClockSink, ESPMode::ThreadSafe> ClockSink;
 
 	UTextureRenderTarget2D* ValidateRenderTarget(TSoftObjectPtr<UTextureRenderTarget2D> RenderTarget2D);
+
+	void UpdateRenderTextures();
+
+	static void UpdatePlaneTexture_RenderThread(FRHICommandListImmediate& RHICmd, FTextureRenderTargetResource* RTRes, const uint8* Src, int32 W, int32 H);
 
 };
