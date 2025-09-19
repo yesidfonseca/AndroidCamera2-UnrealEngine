@@ -27,6 +27,8 @@ public:
 	bool GetLastPreviewFrameInfo(void*& yPlaneBuffer, void*& uPlaneBuffer, void*& vPlaneBuffer, int32 & previewWidth, int32 & previewHeight, int64& timeStamp) ;    
 	void ReleaseLastPreviewFrameInfo();	
 	int64 GetLastFrameTimeStamp();
+	bool GetCameraIntrinsincs(const FString& CameraId, float& FocalLengthX, float& FocalLengthY, float& PrincipalPointX, float& PrincipalPointY, float& Skew, int32& SensorWidthPx, int32& SensorHeightPx, float& focalLengthMm, float& SensorWidthMM, float& SensorHeightMM, int32& sensorOrientation);
+	bool GetCameraLensPose(const FString& CameraId, float& quat_x, float& quat_y, float& quat_z, float& quat_w, float& loc_x, float& loc_y, float& loc_z, int& reference);
 
 private:
 	static FName GetClassName();
@@ -41,5 +43,6 @@ private:
 	FJavaClassMethod ReleaseMethod;
 	FJavaClassMethod getInitializeCameraStateMethod;
 	FJavaClassMethod getLastFrameTimeStampMethod;
-	
+	FJavaClassMethod getIntrinsicsMethod;
+	FJavaClassMethod getLensPoseMethod;
 };

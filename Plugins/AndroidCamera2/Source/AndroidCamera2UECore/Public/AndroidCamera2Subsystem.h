@@ -85,6 +85,63 @@ enum class EAndroidCamera2RotationMode : uint8
 	RSensor = 4
 };
 
+USTRUCT(BlueprintType)
+struct FAndroidCamera2Intrinsics
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		FVector2f FocalLength = FVector2f::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FVector2f PrincipalPoint = FVector2f::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		float Skew = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		FIntVector2 SensorSizePx = FIntVector2::ZeroValue;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		float FocalLengthMm = 0.f;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FVector2f SensorSizeMM = FVector2f::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		int32 SensorOrientation = 0;
+	FAndroidCamera2Intrinsics() {}
+
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("FocalLength: (%.3f, %.3f), PrincipalPoint: (%.3f, %.3f), Skew: %.2f, SensorSizePx: (%d, %d), FocalLengthMm: %.3f, SensorSizeMM: (%.3f, %.3f), SensorOrientation: %d"),
+			FocalLength.X, FocalLength.Y, PrincipalPoint.X, PrincipalPoint.Y, Skew, SensorSizePx.X, SensorSizePx.Y, FocalLengthMm, SensorSizeMM.X, SensorSizeMM.Y, SensorOrientation);
+	}
+};
+
+UENUM()
+enum class EAndroidCamera2LensPoseReference:uint8
+{
+	PRIMARY_CAMERA = 0,
+	GYROSCOPE = 1,
+	UNDEFINED = 2,
+	AUTOMOTIVE = 3
+
+};
+
+USTRUCT(BlueprintType)
+struct FAndroidCamera2LensPose
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		FQuat Orientation = FQuat::Identity;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FVector Location = FVector::ZeroVector;
+	// 0: unknown, 1: camera coordinate system, 2: world coordinate system
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	EAndroidCamera2LensPoseReference LensPoseReference = EAndroidCamera2LensPoseReference::UNDEFINED;
+	FAndroidCamera2LensPose() {}
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Orientation: (x=%.3f, y=%.3f, z=%.3f, w=%.3f), Location: (x=%.3f, y=%.3f, z=%.3f), Reference: %s"),
+			Orientation.X, Orientation.Y, Orientation.Z, Orientation.W,
+			Location.X, Location.Y, Location.Z,
+			*UEnum::GetValueAsString(LensPoseReference));
+	}
+};
 
 UCLASS()
 class ANDROIDCAMERA2UECORE_API UAndroidCamera2Subsystem final : public UGameInstanceSubsystem
@@ -95,12 +152,9 @@ public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
 
-
 	UAndroidCamera2Subsystem();
 
-
     virtual void TickFetch(FTimespan DeltaTime);
-
 
 	//TODO: missing functionality for stillCapure
 	bool InitializeCamera(const FString& CameraId, EAndroidCamera2AEMode AEMode, EAndroidCamera2AFMode AFMode, EAndroidCamera2AWBMode AWBMode, EAndroidCamera2ControlMode ControlMode,
@@ -109,7 +163,6 @@ public:
 	
     TArray<FString> GetCameraIdList();
 
-	
 
 	bool GetLuminanceBufferPtr(const uint8*& OutPtr, int32& OutWidth, int32& OutHeight, int64& OutTimestamp) const;
 
@@ -126,6 +179,10 @@ public:
 	void ResumeCamera();
 
 	void StopCamera();
+
+	bool GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics);
+
+	bool GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose);
 
 private:
 	EAndroidCamera2State CameraState = EAndroidCamera2State::OFF;
