@@ -96,7 +96,7 @@ struct FAndroidCamera2Intrinsics
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
 		float Skew = 0.f;
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
-		FIntVector2 SensorSizePx = FIntVector2::ZeroValue;
+		FIntPoint SensorSizePx = FIntPoint::ZeroValue;
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
 		float FocalLengthMm = 0.f;
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
