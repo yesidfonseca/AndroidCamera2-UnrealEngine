@@ -112,6 +112,37 @@ struct FAndroidCamera2Intrinsics
 	}
 };
 
+UENUM()
+enum class EAndroidCamera2LensPoseReference:uint8
+{
+	PRIMARY_CAMERA = 0,
+	GYROSCOPE = 1,
+	UNDEFINED = 2,
+	AUTOMOTIVE = 3
+
+};
+
+USTRUCT(BlueprintType)
+struct FAndroidCamera2LensPose
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+		FQuat Orientation = FQuat::Identity;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FVector Location = FVector::ZeroVector;
+	// 0: unknown, 1: camera coordinate system, 2: world coordinate system
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	EAndroidCamera2LensPoseReference LensPoseReference = EAndroidCamera2LensPoseReference::UNDEFINED;
+	FAndroidCamera2LensPose() {}
+	FString ToString() const
+	{
+		return FString::Printf(TEXT("Orientation: (x=%.3f, y=%.3f, z=%.3f, w=%.3f), Location: (x=%.3f, y=%.3f, z=%.3f), Reference: %s"),
+			Orientation.X, Orientation.Y, Orientation.Z, Orientation.W,
+			Location.X, Location.Y, Location.Z,
+			*UEnum::GetValueAsString(LensPoseReference));
+	}
+};
+
 UCLASS()
 class ANDROIDCAMERA2UECORE_API UAndroidCamera2Subsystem final : public UGameInstanceSubsystem
 {
@@ -150,6 +181,8 @@ public:
 	void StopCamera();
 
 	bool GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics);
+
+	bool GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose);
 
 private:
 	EAndroidCamera2State CameraState = EAndroidCamera2State::OFF;

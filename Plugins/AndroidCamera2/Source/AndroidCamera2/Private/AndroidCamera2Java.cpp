@@ -41,6 +41,7 @@ FAndroidCamera2Java::FAndroidCamera2Java():FJavaClassObject(GetClassName(), "()V
 	getInitializeCameraStateMethod = GetClassMethod("getInitializeCameraState", "()Z");
 	getLastFrameTimeStampMethod = GetClassMethod("getLastFrameTimeStamp", "()J");
 	getIntrinsicsMethod = GetClassMethod("getIntrinsics", "(Ljava/lang/String;)Lcom/FonseCode/camera2/Camera2UE$Intrinsics;");
+	getLensPoseMethod = GetClassMethod("getLensPose", "(Ljava/lang/String;)Lcom/FonseCode/camera2/Camera2UE$LensPose;");
 }
 
 FAndroidCamera2Java::~FAndroidCamera2Java()
@@ -211,6 +212,39 @@ bool FAndroidCamera2Java::GetCameraIntrinsincs(const FString& CameraId, float& F
 	SensorWidthMM = JEnv->GetFloatField(Result,		Intrinsics_sensorWidthMm);
 	SensorHeightMM = JEnv->GetFloatField(Result,	Intrinsics_sensorHeightMm);
 	sensorOrientation = JEnv->GetIntField(Result,	Intrinsics_sensorOrientation);
+
+	return true;
+}
+
+bool FAndroidCamera2Java::GetCameraLensPose(const FString& CameraId, float& quat_x, float& quat_y, float& quat_z, float& quat_w, float& loc_x, float& loc_y, float& loc_z, int& reference)
+{
+	// This can return an exception in some cases
+	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
+	jobject Result = CallMethod<jobject>(getLensPoseMethod, *GetJString(CameraId));
+
+	if (!Result)
+	{
+		return false;
+	}
+
+	jclass LensPoseClass = FAndroidApplication::FindJavaClassGlobalRef("com/FonseCode/camera2/Camera2UE$LensPose");
+	jfieldID LensPose_quat_x	= FindField(JEnv, LensPoseClass, "quat_x", "F", false);
+	jfieldID LensPose_quat_y	= FindField(JEnv, LensPoseClass, "quat_y", "F", false);
+	jfieldID LensPose_quat_z	= FindField(JEnv, LensPoseClass, "quat_z", "F", false);
+	jfieldID LensPose_quat_w	= FindField(JEnv, LensPoseClass, "quat_w", "F", false);
+	jfieldID LensPose_loc_x		= FindField(JEnv, LensPoseClass, "loc_x", "F", false);
+	jfieldID LensPose_loc_y		= FindField(JEnv, LensPoseClass, "loc_y", "F", false);
+	jfieldID LensPose_loc_z		= FindField(JEnv, LensPoseClass, "loc_z", "F", false);
+	jfieldID LensPose_reference = FindField(JEnv, LensPoseClass, "lensposeReference", "I", false);
+
+	quat_x = JEnv->GetFloatField(Result, LensPose_quat_x);
+	quat_y = JEnv->GetFloatField(Result, LensPose_quat_y);
+	quat_z = JEnv->GetFloatField(Result, LensPose_quat_z);
+	quat_w = JEnv->GetFloatField(Result, LensPose_quat_w);
+	loc_x = JEnv->GetFloatField(Result, LensPose_loc_x);
+	loc_y = JEnv->GetFloatField(Result, LensPose_loc_y);
+	loc_z = JEnv->GetFloatField(Result, LensPose_loc_z);
+	reference = JEnv->GetIntField(Result, LensPose_reference);
 
 	return true;
 }

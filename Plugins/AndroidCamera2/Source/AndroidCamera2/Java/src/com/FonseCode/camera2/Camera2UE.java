@@ -840,7 +840,7 @@ public final class Camera2UE {
     public class LensPose {
         public float quat_x = 0f, quat_y = 0f, quat_z = 0f, quat_w = 1f;
         public float loc_x = 0f, loc_y = 0f, loc_z = 0f;
-        public int lensposeReference = 0; //UNDEFINED:0, PRIMARY_CAMERA:0, GYROSCOPE:1, AUTOMOTIVE:3
+        public int lensposeReference = 2; //UNDEFINED:2, PRIMARY_CAMERA:0, GYROSCOPE:1, AUTOMOTIVE:3
 
         @Override
         public String toString() {
@@ -852,17 +852,22 @@ public final class Camera2UE {
         }
     }
     @Nullable
-    public LensPose getLensPose(String cameraId) {
+    public LensPose getLensPose(String inputCameraId) {
         try {
-            CameraManager cm = (CameraManager) appContext.getSystemService(Context.CAMERA_SERVICE);
-            CameraCharacteristics ch = cm.getCameraCharacteristics(cameraId);
+            if (inputCameraId == null || inputCameraId.isEmpty()) {
+                Log.e(TAG, "getLensPose: cameraId vacio o nulo");
+                return null;
+            }
+
+            ensureManager();
+            CameraCharacteristics ch = cameraManager.getCameraCharacteristics(inputCameraId);
 
             LensPose out = new LensPose();
 
             // Pose reference (enum int). Disponible desde API 28 (Android P)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 Integer poseRef = ch.get(CameraCharacteristics.LENS_POSE_REFERENCE);
-                out.lensposeReference = (poseRef != null) ? poseRef : 0; // 0 = UNDEFINED
+                out.lensposeReference = (poseRef != null) ? poseRef : 2; // 2 = UNDEFINED
             }
 
             float[] q = ch.get(CameraCharacteristics.LENS_POSE_ROTATION);

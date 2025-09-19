@@ -40,8 +40,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "GetCameraIntrinsics")
 	static bool GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics);
 
+	UFUNCTION(BlueprintCallable, Category = "Android|Camera2", DisplayName = "GetCameraLensPose")
+	static bool GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose);
+
 	UFUNCTION(BlueprintPure, Category = "Android|Camera2",
 		meta = (DisplayName = "ToString (FAndroidCamera2Intrinsics)", CompactNodeTitle = "ToString"))
 	static FString AndroidCamera2Intrinsics_ToString(const FAndroidCamera2Intrinsics& In);
+
+	UFUNCTION(BlueprintPure, Category = "Android|Camera2",
+		meta = (DisplayName = "ToString (FAndroidCamera2LensPose)", CompactNodeTitle = "ToString"))
+	static FString AndroidCamera2LensPose_ToString(const FAndroidCamera2LensPose& In);
 
 };

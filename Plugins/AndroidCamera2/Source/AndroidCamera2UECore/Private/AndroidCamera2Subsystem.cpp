@@ -233,6 +233,29 @@ public:
 		return false;
     }
 
+    bool GetLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose)
+    {
+        LensPose = FAndroidCamera2LensPose();
+        FQuat4f Orient = FQuat4f::Identity;
+        FVector3f Loc = FVector3f::ZeroVector;
+        int32 LensPoseReference = 2;
+        bool bOk = false;
+
+#if PLATFORM_ANDROID
+		bOk = AndroidCamera2Java->GetCameraLensPose(CameraId, Orient.X, Orient.Y, Orient.Z, Orient.W, Loc.X, Loc.Y, Loc.Z, LensPoseReference);
+#endif
+
+        if (bOk)
+        {
+            LensPose.Orientation = FQuat(Orient);
+            LensPose.Location = FVector(Loc);
+            LensPose.LensPoseReference = (EAndroidCamera2LensPoseReference)LensPoseReference;
+            return true;
+        }
+
+        return false;
+    }
+
 };
 
 
@@ -558,4 +581,9 @@ bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroi
 bool UAndroidCamera2Subsystem::GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
 {
 	return AndroidCamera2->GetIntrinsics(CameraId, Intrinsics);
+}
+
+bool UAndroidCamera2Subsystem::GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose)
+{
+    return AndroidCamera2->GetLensPose(CameraId, LensPose);
 }
