@@ -224,6 +224,15 @@ public:
         return false;
     }
 
+    bool GetIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
+    {
+		Intrinsics = FAndroidCamera2Intrinsics();
+        #if PLATFORM_ANDROID
+		return AndroidCamera2Java->GetCameraIntrinsincs(CameraId, Intrinsics.FocalLength.X, Intrinsics.FocalLength.Y, Intrinsics.PrincipalPoint.X, Intrinsics.PrincipalPoint.Y, Intrinsics.Skew, Intrinsics.SensorSizePx.X, Intrinsics.SensorSizePx.Y, Intrinsics.FocalLengthMm, Intrinsics.SensorSizeMM.X, Intrinsics.SensorSizeMM.Y, Intrinsics.SensorOrientation);
+        #endif
+		return false;
+    }
+
 };
 
 
@@ -546,3 +555,7 @@ bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroi
     return CameraState == EAndroidCamera2State::INITIALIZED;
 }
 
+bool UAndroidCamera2Subsystem::GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
+{
+	return AndroidCamera2->GetIntrinsics(CameraId, Intrinsics);
+}
