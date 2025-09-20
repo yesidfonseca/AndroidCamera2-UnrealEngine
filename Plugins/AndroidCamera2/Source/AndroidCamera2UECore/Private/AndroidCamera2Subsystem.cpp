@@ -247,8 +247,21 @@ public:
 
         if (bOk)
         {
-            LensPose.Orientation = FQuat(Orient);
-            LensPose.Location = FVector(Loc);
+            LensPose.OrientationDeviceCoord = FQuat(Orient);
+            LensPose.LocationDeviceCoord = FVector(Loc);
+            FVector Xc = LensPose.OrientationDeviceCoord.RotateVector(FVector(1, 0, 0));
+			FVector Yc = LensPose.OrientationDeviceCoord.RotateVector(FVector(0, 1, 0));
+			FVector Zc = LensPose.OrientationDeviceCoord.RotateVector(FVector(0, 0, 1));
+			// From device coord to UE coord
+            auto MapToUE = [](const FVector& V) -> FVector
+            {
+                return FVector(V.Z, V.X, -V.Y);
+				};
+            FVector Xe = MapToUE(Xc);
+            FVector Ye = MapToUE(Yc);
+            FVector Ze = MapToUE(Zc);
+			LensPose.OrientationUECoord = FRotationMatrix::MakeFromZX(Ze, -Ye).ToQuat();
+			LensPose.LocationUECoord = MapToUE(LensPose.LocationDeviceCoord);
             LensPose.LensPoseReference = (EAndroidCamera2LensPoseReference)LensPoseReference;
             return true;
         }

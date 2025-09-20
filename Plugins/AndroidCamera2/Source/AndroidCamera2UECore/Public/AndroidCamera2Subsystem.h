@@ -127,18 +127,23 @@ struct FAndroidCamera2LensPose
 {
 	GENERATED_BODY()
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
-		FQuat Orientation = FQuat::Identity;
+		FQuat OrientationDeviceCoord = FQuat::Identity;
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
-	FVector Location = FVector::ZeroVector;
-	// 0: unknown, 1: camera coordinate system, 2: world coordinate system
+	FVector LocationDeviceCoord = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FQuat OrientationUECoord = FQuat::Identity;
+	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
+	FVector LocationUECoord = FVector::ZeroVector;
+
 	UPROPERTY(BlueprintReadOnly, Category = "AndroidCamera2")
 	EAndroidCamera2LensPoseReference LensPoseReference = EAndroidCamera2LensPoseReference::UNDEFINED;
 	FAndroidCamera2LensPose() {}
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("Orientation: (x=%.3f, y=%.3f, z=%.3f, w=%.3f), Location: (x=%.3f, y=%.3f, z=%.3f), Reference: %s"),
-			Orientation.X, Orientation.Y, Orientation.Z, Orientation.W,
-			Location.X, Location.Y, Location.Z,
+		return FString::Printf(TEXT("OrientationDeviceCoor: (x=%.3f, y=%.3f, z=%.3f, w=%.3f), Location: (x=%.3f, y=%.3f, z=%.3f), Reference: %s"),
+			OrientationDeviceCoord.X, OrientationDeviceCoord.Y, OrientationDeviceCoord.Z, OrientationDeviceCoord.W,
+			LocationDeviceCoord.X, LocationDeviceCoord.Y, LocationDeviceCoord.Z,
 			*UEnum::GetValueAsString(LensPoseReference));
 	}
 };
