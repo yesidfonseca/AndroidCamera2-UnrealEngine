@@ -433,13 +433,6 @@ public final class Camera2UE {
                 mCaptureState = CaptureState.STATE_IDLE;
             }
         }
-
-         @Override public void onCaptureStarted(CameraCaptureSession session, CaptureRequest request, long timestamp, long frameNumber)
-        {
-            if(SensorOffsetTime<0) {
-                SensorOffsetTime = timestamp - ( android.os.SystemClock.elapsedRealtimeNanos()-initialCamTime);
-            }
-        }
     };
 
     private boolean shouldSkipAFConvergence() {
@@ -730,6 +723,9 @@ public final class Camera2UE {
             NativeYuv.I420Rotate(FrameInfo.dy, FrameInfo.du, FrameInfo.dv, FrameInfo.Width, FrameInfo.Height, FrameInfo.dyRot, FrameInfo.duRot, FrameInfo.dvRot, FrameInfo.WidthRot, FrameInfo.HeightRot, FrameInfo.Orientation);
         }
 
+        if(SensorOffsetTime<0) {
+                SensorOffsetTime = image.getTimestamp() - ( android.os.SystemClock.elapsedRealtimeNanos()-initialCamTime);
+        }
         FrameInfo.timeStamp = image.getTimestamp() - SensorOffsetTime;
 
         Trace.endSection();
