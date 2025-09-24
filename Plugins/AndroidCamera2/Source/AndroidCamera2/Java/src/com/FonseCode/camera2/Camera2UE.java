@@ -28,7 +28,8 @@ import android.util.Range;
 import android.view.Surface;
 import androidx.annotation.Nullable;
 import android.os.Trace;
-
+import android.graphics.Rect;
+import android.os.Build;
 import com.epicgames.unreal.GameActivity;
 
 import java.io.File;
@@ -127,6 +128,8 @@ public final class Camera2UE {
 
     private Context appContext;
 
+    private long initialCamTime =0;
+    private long SensorOffsetTime = -1;
 
     private long framecounter = 0;
     FrameUpdateInfo FrameInfo = new FrameUpdateInfo();
@@ -176,17 +179,21 @@ public final class Camera2UE {
 
     public Camera2UE(Context context) {
         this.appContext = context.getApplicationContext();
+        initialCamTime = android.os.SystemClock.elapsedRealtimeNanos();
+        SensorOffsetTime = -1;
     }
 
     private Camera2UE() {
-    GameActivity ga = GameActivity.Get();
-    if (ga == null) {
-        Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
-        return;
+        GameActivity ga = GameActivity.Get();
+        if (ga == null) {
+            Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
+            return;
+        }
+   
+        appContext = ga.getApplicationContext();
+        initialCamTime = android.os.SystemClock.elapsedRealtimeNanos();
+        SensorOffsetTime = -1;
     }
-
-    appContext = ga.getApplicationContext();
-}
 
     // -------------------------------------------------------
     // 1) Obtener lista de camaras disponibles (IDs de Camera2)
@@ -213,8 +220,6 @@ public final class Camera2UE {
     @SuppressLint("MissingPermission")
     public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn, int RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS) {
         try {
-
-
 
             ensureManager();
             if (inputCameraId == null || inputCameraId.isEmpty()) {
@@ -718,7 +723,10 @@ public final class Camera2UE {
             NativeYuv.I420Rotate(FrameInfo.dy, FrameInfo.du, FrameInfo.dv, FrameInfo.Width, FrameInfo.Height, FrameInfo.dyRot, FrameInfo.duRot, FrameInfo.dvRot, FrameInfo.WidthRot, FrameInfo.HeightRot, FrameInfo.Orientation);
         }
 
-        FrameInfo.timeStamp = image.getTimestamp();
+        if(SensorOffsetTime<0) {
+                SensorOffsetTime = image.getTimestamp() - ( android.os.SystemClock.elapsedRealtimeNanos()-initialCamTime);
+        }
+        FrameInfo.timeStamp = image.getTimestamp() - SensorOffsetTime;
 
         Trace.endSection();
     }
@@ -815,6 +823,133 @@ public final class Camera2UE {
             if (r.contains(targetFps) && contains == null) contains = r;
         }
         return exactFixed != null ? exactFixed : contains;
+    }
+
+    public class Intrinsics {
+        // En pixeles (coordenadas del active array)
+        public float fx, fy, cx, cy, skew;
+        // Tamaño del active array en pixeles
+        public int activeSensorLeft, activeSensorRight, activeSensorTop, activeSensorBottom;
+        // Datos útiles adicionales
+        public float focalLengthMm;        // distancia focal elegida (mm)
+        public float sensorWidthMm, sensorHeightMm; // tamaño físico del sensor (mm)
+        public int sensorOrientation;      // 90, 270, etc.
+    }
+
+    public class LensPose {
+        public float quat_x = 0f, quat_y = 0f, quat_z = 0f, quat_w = 1f;
+        public float loc_x = 0f, loc_y = 0f, loc_z = 0f;
+        public int lensposeReference = 2; //UNDEFINED:2, PRIMARY_CAMERA:0, GYROSCOPE:1, AUTOMOTIVE:3
+
+        @Override
+        public String toString() {
+            return String.format(
+                    "quat_x=%.3f quat_y=%.3f quat_z=%.3f quat_w=%.3f, loc_x=%.3f loc_y=%.3f loc_z=%.3f, lensposeReference=%d",
+                    quat_x, quat_y, quat_z, quat_w, loc_x, loc_y, loc_z, lensposeReference
+            );
+
+        }
+    }
+    @Nullable
+    public LensPose getLensPose(String inputCameraId) {
+        try {
+            if (inputCameraId == null || inputCameraId.isEmpty()) {
+                Log.e(TAG, "getLensPose: cameraId vacio o nulo");
+                return null;
+            }
+
+            ensureManager();
+            CameraCharacteristics ch = cameraManager.getCameraCharacteristics(inputCameraId);
+
+            LensPose out = new LensPose();
+
+            // Pose reference (enum int). Disponible desde API 28 (Android P)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                Integer poseRef = ch.get(CameraCharacteristics.LENS_POSE_REFERENCE);
+                out.lensposeReference = (poseRef != null) ? poseRef : 2; // 2 = UNDEFINED
+            }
+
+            float[] q = ch.get(CameraCharacteristics.LENS_POSE_ROTATION);
+            if (q != null && q.length >= 4) {
+                out.quat_x = q[0];
+                out.quat_y = q[1];
+                out.quat_z = q[2];
+                out.quat_w = q[3];
+            }
+
+            float[] t = ch.get(CameraCharacteristics.LENS_POSE_TRANSLATION);
+            if (t != null && t.length >= 3) {
+                out.loc_x = t[0];
+                out.loc_y = t[1];
+                out.loc_z = t[2];
+            }
+
+            return out;
+
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "getLensPose: CameraAccessException " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+
+    @Nullable
+    public Intrinsics getIntrinsics( String inputCameraId) {
+        Intrinsics out = new Intrinsics();
+        try {
+            if (inputCameraId == null || inputCameraId.isEmpty()) {
+                Log.e(TAG, "getIntrinsics: cameraId vacio o nulo");
+                return null;
+            }
+
+            ensureManager();
+            CameraCharacteristics ch = cameraManager.getCameraCharacteristics(inputCameraId);
+
+            Rect active = ch.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+            if (active == null) return null;
+
+            float[] focalLengths = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+            if (focalLengths == null || focalLengths.length == 0) return null;
+            float focalMm = focalLengths[0];
+
+            android.util.SizeF physicalSize = ch.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+            if (physicalSize == null) return null;
+
+
+            out.activeSensorLeft = active.left;
+            out.activeSensorRight = active.right;
+            out.activeSensorTop = active.top;
+            out.activeSensorBottom = active.bottom;
+            out.focalLengthMm = focalMm;
+            out.sensorWidthMm = physicalSize.getWidth();
+            out.sensorHeightMm = physicalSize.getHeight();
+            out.sensorOrientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION);
+
+            // 1) Intentar intrinsecas calibradas (en pixeles): [fx, fy, cx, cy, s]
+            float[] K = ch.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION);
+            if (K != null && K.length >= 5) {
+                out.fx = K[0];
+                out.fy = K[1];
+                out.cx = K[2];
+                out.cy = K[3];
+                out.skew = K[4];
+            } else {
+                // 2) Fallback: calcular fx/fy en pixeles a partir de focal (mm) y sensor físico (mm)
+                float fx = focalMm * (active.width() / out.sensorWidthMm);
+                float fy = focalMm * (active.height() / out.sensorHeightMm);
+
+                out.fx = fx;
+                out.fy = fy;
+                out.cx = active.left + active.width() * 0.5f;
+                out.cy = active.top + active.height() * 0.5f;
+                out.skew = 0.0f;
+            }
+        }catch(CameraAccessException e)
+        {
+            Log.e(TAG, "getIntrinsics: CameraAccessException " + e.getMessage(), e);
+            return null;
+        }
+        return out;
     }
 
 

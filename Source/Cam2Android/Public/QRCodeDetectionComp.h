@@ -41,7 +41,7 @@ private:
 	int32 Height = 0;
 
 	// Buffer CPU compactos W*H
-	int64 LastFrameTimestamp = 0;
+	uint64 LastFrameTimestamp = 0;
 	TArray<uint8> YCurr;
 
 	TArray<FQRDetection> QRDetections;

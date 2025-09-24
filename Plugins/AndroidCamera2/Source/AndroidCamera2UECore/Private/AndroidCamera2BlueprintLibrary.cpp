@@ -82,3 +82,39 @@ EAndroidCamera2State UAndroidCamera2BlueprintLibrary::GetCameraState()
 
     return EAndroidCamera2State::OFF;
 }
+
+bool UAndroidCamera2BlueprintLibrary::GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
+{
+	Intrinsics = FAndroidCamera2Intrinsics();
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->GetCameraIntrinsics(CameraId, Intrinsics);
+        }
+    }
+    return false;
+}
+
+bool UAndroidCamera2BlueprintLibrary::GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose)
+{
+    LensPose = FAndroidCamera2LensPose();
+    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
+    {
+        if (auto* Cam2 = GI->GetSubsystem<UAndroidCamera2Subsystem>())
+        {
+            return Cam2->GetCameraLensPose(CameraId, LensPose);
+        }
+    }
+    return false;
+}
+
+FString UAndroidCamera2BlueprintLibrary::AndroidCamera2Intrinsics_ToString(const FAndroidCamera2Intrinsics& In)
+{
+    return In.ToString();
+}
+
+FString UAndroidCamera2BlueprintLibrary::AndroidCamera2LensPose_ToString(const FAndroidCamera2LensPose& In)
+{
+    return In.ToString(); 
+}

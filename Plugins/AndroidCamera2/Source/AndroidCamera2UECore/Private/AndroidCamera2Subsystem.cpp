@@ -74,13 +74,14 @@ public:
     void* vJavaBuffer = nullptr;
     bool bRenderYRT = false, bRenderURT = false, bRenderVRT = false;
     bool bUpdateYBuffer = false, bUpdateUBuffer = false, bUpdateVBuffer = false;
+    uint64 InitialTimeStampCycles64;
 
 #if PLATFORM_ANDROID
     TSharedPtr<FAndroidCamera2Java, ESPMode::ThreadSafe> AndroidCamera2Java;
 #endif
 
     int32 Width = 0, Height = 0;
-    int64 Timestamp = 0;
+    uint64 TimeStampCycles64 = 0;
     bool bOnRenderQueued{ false };
     void CheckBuffersSize(int32 InWidth, int32 InHeight)
     {
@@ -101,25 +102,27 @@ public:
     FAndroidCamera2ThreadSafe()
         : Width(0)
         , Height(0)
-        , Timestamp(0)
+        , TimeStampCycles64(0)
     {
 #if PLATFORM_ANDROID
         AndroidCamera2Java = MakeShared<FAndroidCamera2Java, ESPMode::ThreadSafe>();
+        InitialTimeStampCycles64 = FPlatformTime::Cycles64();
 #endif
     }
 
     void GetLastFrameInfo()
     {
-        if (bOnRenderQueued && GetJavaLastFrameTimeStamp() == Timestamp)
+        if (bOnRenderQueued && GetJavaLastFrameTimeStamp() == TimeStampCycles64)
             return;
 
 #if PLATFORM_ANDROID
         
         int32 imgWidth = 0;
         int32 imgHeight = 0;
+        int64 TimeStampNanos = 0;
+        AndroidCamera2Java->GetLastPreviewFrameInfo(yJavaBuffer, uJavaBuffer, vJavaBuffer, imgWidth, imgHeight, TimeStampNanos); //This call block java side updates on JavaBuffers
+		TimeStampCycles64 = ConvertTimeStampMicrosToCycles64(TimeStampNanos/1000);
 
-        AndroidCamera2Java->GetLastPreviewFrameInfo(yJavaBuffer, uJavaBuffer, vJavaBuffer, imgWidth, imgHeight, Timestamp); //This call block java side updates on JavaBuffers
-        
         CheckBuffersSize(imgWidth, imgHeight);
 
         if (bUpdateYBuffer && yJavaBuffer)
@@ -171,13 +174,22 @@ public:
 #endif
     }
 
-	int64 GetJavaLastFrameTimeStamp() const 
+	uint64 GetJavaLastFrameTimeStamp() const 
     { 
+        int64 TimeStampNanos = 0;
 #if PLATFORM_ANDROID
-        return AndroidCamera2Java->GetLastFrameTimeStamp();
+        TimeStampNanos = AndroidCamera2Java->GetLastFrameTimeStamp();
 #endif
-        return Timestamp; 
+		//TimeStampNanos is in nanoseconds an relative to AndroidCamera2Java Construction time
+		//Convert to Cycles relative to InitialTimeStampCycles
+        
+        return  ConvertTimeStampMicrosToCycles64(TimeStampNanos/1000);
     }
+
+    uint64 ConvertTimeStampMicrosToCycles64(int64 TimeStampMicros) const
+    {
+        return FPlatformTime::SecondsToCycles64((double)(TimeStampMicros) / (double)1e6) + InitialTimeStampCycles64;
+	}
 
     void EnsureRT_G8(UTextureRenderTarget2D* RT, int32 W, int32 H)
     {
@@ -221,6 +233,46 @@ public:
             targetFPS
         );
 #endif
+        return false;
+    }
+
+    bool GetIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
+    {
+		Intrinsics = FAndroidCamera2Intrinsics();
+        #if PLATFORM_ANDROID
+		return AndroidCamera2Java->GetCameraIntrinsincs(CameraId, Intrinsics.FocalLength.X, Intrinsics.FocalLength.Y, Intrinsics.PrincipalPoint.X, Intrinsics.PrincipalPoint.Y, Intrinsics.Skew, Intrinsics.ActiveSensorMin.X, Intrinsics.ActiveSensorMin.Y, Intrinsics.ActiveSensorMax.X, Intrinsics.ActiveSensorMax.Y,Intrinsics.FocalLengthMm, Intrinsics.SensorSizeMM.X, Intrinsics.SensorSizeMM.Y, Intrinsics.SensorOrientation);
+        #endif
+		return false;
+    }
+
+    bool GetLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose)
+    {
+        LensPose = FAndroidCamera2LensPose();
+        FQuat4f Orient = FQuat4f::Identity;
+        FVector3f Loc = FVector3f::ZeroVector;
+        int32 LensPoseReference = 2;
+        bool bOk = false;
+
+#if PLATFORM_ANDROID
+		bOk = AndroidCamera2Java->GetCameraLensPose(CameraId, Orient.X, Orient.Y, Orient.Z, Orient.W, Loc.X, Loc.Y, Loc.Z, LensPoseReference);
+#endif
+
+        if (bOk)
+        {
+            LensPose.OrientationDeviceCoord = FQuat(Orient);
+            LensPose.LocationDeviceCoord = FVector(Loc);            
+			// From device coord to UE coord
+            auto MapToUE = [](const FVector& V) -> FVector
+            {
+                return FVector(V.Z, V.X, -V.Y);
+				};
+            
+            LensPose.OrientationUECoord = FQuat(-Orient.Z, -Orient.X, Orient.Y, Orient.W);
+			LensPose.LocationUECoord = MapToUE(LensPose.LocationDeviceCoord);
+            LensPose.LensPoseReference = (EAndroidCamera2LensPoseReference)LensPoseReference;
+            return true;
+        }
+
         return false;
     }
 
@@ -304,7 +356,7 @@ UTextureRenderTarget2D* UAndroidCamera2Subsystem::ValidateRenderTarget(TSoftObje
 bool UAndroidCamera2Subsystem::GetLuminanceBufferPtr(const uint8*& OutPtr,
     int32& OutWidth,
     int32& OutHeight,
-    int64& OutTimestamp) const
+    uint64& OutTimestamp) const
 {
     if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
         return false;
@@ -312,7 +364,7 @@ bool UAndroidCamera2Subsystem::GetLuminanceBufferPtr(const uint8*& OutPtr,
     OutPtr = AndroidCamera2->YBuffer.GetData();
     OutWidth = AndroidCamera2->Width;
     OutHeight = AndroidCamera2->Height;
-    OutTimestamp = AndroidCamera2->Timestamp;
+    OutTimestamp = AndroidCamera2->TimeStampCycles64;
 
     return true;
 }
@@ -320,7 +372,7 @@ bool UAndroidCamera2Subsystem::GetLuminanceBufferPtr(const uint8*& OutPtr,
 bool UAndroidCamera2Subsystem::GetCbChromaBufferPtr(const uint8*& OutPtr,
     int32& OutWidth,
     int32& OutHeight,
-    int64& OutTimestamp) const
+    uint64& OutTimestamp) const
 {
     if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
         return false;
@@ -328,7 +380,7 @@ bool UAndroidCamera2Subsystem::GetCbChromaBufferPtr(const uint8*& OutPtr,
     OutPtr = AndroidCamera2->UBuffer.GetData();
     OutWidth = AndroidCamera2->Width/2;
     OutHeight = AndroidCamera2->Height/2;
-    OutTimestamp = AndroidCamera2->Timestamp;
+    OutTimestamp = AndroidCamera2->TimeStampCycles64;
 
     return true;
 }
@@ -336,7 +388,7 @@ bool UAndroidCamera2Subsystem::GetCbChromaBufferPtr(const uint8*& OutPtr,
 bool UAndroidCamera2Subsystem::GetCrChromaBufferPtr(const uint8*& OutPtr,
     int32& OutWidth,
     int32& OutHeight,
-    int64& OutTimestamp) const
+    uint64& OutTimestamp) const
 {
 
     if (AndroidCamera2->Width <= 0 || AndroidCamera2->Height <= 0 || AndroidCamera2->YBuffer.Num() == 0)
@@ -345,7 +397,7 @@ bool UAndroidCamera2Subsystem::GetCrChromaBufferPtr(const uint8*& OutPtr,
     OutPtr = AndroidCamera2->VBuffer.GetData();
     OutWidth = AndroidCamera2->Width / 2;
     OutHeight = AndroidCamera2->Height / 2;
-    OutTimestamp = AndroidCamera2->Timestamp;
+    OutTimestamp = AndroidCamera2->TimeStampCycles64;
 
     return true;
 }
@@ -546,3 +598,12 @@ bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroi
     return CameraState == EAndroidCamera2State::INITIALIZED;
 }
 
+bool UAndroidCamera2Subsystem::GetCameraIntrinsics(FString CameraId, FAndroidCamera2Intrinsics& Intrinsics)
+{
+	return AndroidCamera2->GetIntrinsics(CameraId, Intrinsics);
+}
+
+bool UAndroidCamera2Subsystem::GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose)
+{
+    return AndroidCamera2->GetLensPose(CameraId, LensPose);
+}
