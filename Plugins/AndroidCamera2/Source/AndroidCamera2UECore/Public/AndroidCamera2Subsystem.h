@@ -193,6 +193,8 @@ public:
 
 	bool GetCameraLensPose(FString CameraId, FAndroidCamera2LensPose& LensPose);
 
+	FString GetCurrentCameraId() const { return CurrentCameraId; };
+
 private:
 	EAndroidCamera2State CameraState = EAndroidCamera2State::OFF;
 
@@ -215,5 +217,7 @@ private:
 	void UpdateRenderTextures();
 
 	static void UpdatePlaneTexture_RenderThread(FRHICommandListImmediate& RHICmd, FTextureRenderTargetResource* RTRes, const uint8* Src, int32 W, int32 H);
+
+	FString CurrentCameraId ="";
 
 };

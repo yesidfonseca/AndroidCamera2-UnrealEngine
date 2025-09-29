@@ -595,6 +595,8 @@ bool UAndroidCamera2Subsystem::InitializeCamera(const FString& CameraId, EAndroi
         MediaModule->GetClock().AddSink(ClockSink.ToSharedRef());
     }
 
+	CurrentCameraId = CameraId;
+
     return CameraState == EAndroidCamera2State::INITIALIZED;
 }
 
