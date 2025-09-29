@@ -187,6 +187,6 @@ private:
 
 	int32 CameraPoseIndex = 0;
 	
-	void GetLeftEyeWorldPos(FTransform HDM, FRotator& CamRot, FVector& CamLoc);
+	void GetEyeWorldPos(FString CameraId, FTransform HDM, FRotator& CamRot, FVector& CamLoc);
 
 };

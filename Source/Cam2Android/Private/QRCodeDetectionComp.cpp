@@ -59,7 +59,7 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 					FTransform CamHDM = Camera->GetComponentToWorld();
 					FRotator LeftEyeRot;
 					FVector LeftEyeLoc;
-					GetLeftEyeWorldPos(CamHDM, LeftEyeRot, LeftEyeLoc);
+					GetEyeWorldPos(Cam2->GetCurrentCameraId(), CamHDM, LeftEyeRot, LeftEyeLoc);
 					LastCamPoses[CameraSampleIdx] = FTransform(LeftEyeRot, LeftEyeLoc);
 					LastCamPosesTimes[CameraSampleIdx] = FPlatformTime::Cycles64();
 					CameraSampleIdx = (CameraSampleIdx + 1) % CameraSamples;
@@ -68,8 +68,8 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 				if(!bCamInitialized)
 				{
 					FAndroidCamera2LensPose CamLensPose;
-					Cam2->GetCameraIntrinsics(FString("50"), CamLensIntrinsics);
-					Cam2->GetCameraLensPose(FString("50"), CamLensPose);
+					Cam2->GetCameraIntrinsics(Cam2->GetCurrentCameraId(), CamLensIntrinsics);
+					Cam2->GetCameraLensPose(Cam2->GetCurrentCameraId(), CamLensPose);
 					CamLensPoseRot = FRotator(CamLensPose.OrientationUECoord.Rotator().Pitch, 0, 0).Quaternion();
 					bCamInitialized = true;
 				}
@@ -244,13 +244,13 @@ bool UQRCodeDetectionComp::GetNearestPointBetweenLines(FVector P1, FVector Dir1,
 }
 
 
-void UQRCodeDetectionComp::GetLeftEyeWorldPos(FTransform HDM, FRotator& CamRot, FVector& CamLoc)
+void UQRCodeDetectionComp::GetEyeWorldPos(FString CameraId, FTransform HDM, FRotator& CamRot, FVector& CamLoc)
 {
 	if (GEngine && GEngine->StereoRenderingDevice.IsValid())
 	{
 		CamRot = HDM.GetRotation().Rotator();
 		CamLoc = HDM.GetLocation();
 		const float W2M = GetWorld()->GetWorldSettings()->WorldToMeters;
-		GEngine->StereoRenderingDevice->CalculateStereoViewOffset(EStereoscopicEye::eSSE_LEFT_EYE, CamRot, W2M, CamLoc);
+		GEngine->StereoRenderingDevice->CalculateStereoViewOffset((CameraId.Equals("50") ? EStereoscopicEye::eSSE_LEFT_EYE : EStereoscopicEye::eSSE_RIGHT_EYE), CamRot, W2M, CamLoc);
 	}
 }
