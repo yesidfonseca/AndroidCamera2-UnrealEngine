@@ -23,19 +23,47 @@ public:
 	FVector EstimatedPoint = FVector(1);
 	int32 LineMaxSamples = 5;
 
-	void AddLine(FVector LinePoint, FVector LineDirection)
+	UPROPERTY(BlueprintReadOnly)	
+	TArray<FVector> LinesPoint;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FVector> LinesDirection;
+
+	bool AddLine(FVector LinePoint, FVector LineDirection, bool bForceAdd = false)
 	{
 		if (LinesDirection.Num() < LineMaxSamples)
 		{
 			LineDirection.Normalize();
 			LinesDirection.Add(LineDirection);
 			LinesPoint.Add(LinePoint);
-			LineSampleIdx++;
+			LineSampleIdx = LinesDirection.Num()-1;
 		}
 		else
 		{
-			LineSampleIdx = (LineSampleIdx + 1) % LineMaxSamples;
+			int32 PosibleLineSampleIdx = (LineSampleIdx + 1) % LineMaxSamples;
 			LineDirection.Normalize();
+			 
+			if (!bForceAdd)
+			{
+				float CurrentSumAngles = 0.f;
+				float PosibleSumAngles = 0.f;
+				for (int32 i = 0; i < LineMaxSamples; i++)
+				{
+					if (i != PosibleLineSampleIdx)
+					{
+						CurrentSumAngles += FMath::Acos(FVector::DotProduct(LinesDirection[i], LinesDirection[PosibleLineSampleIdx]));
+						PosibleSumAngles += FMath::Acos(FVector::DotProduct(LinesDirection[i], LineDirection));
+					}
+				}
+
+				if (PosibleSumAngles*0.9 <= CurrentSumAngles || FVector::Distance(LinesPoint[PosibleLineSampleIdx], LinePoint)<2.f)
+				{
+					return false;
+				}
+				UE_LOG(LogTemp, Display, TEXT("FTriangulationSolver::AddLine. PosibleSumAngles:%f, CurrentSumAngles: %f"), PosibleSumAngles, CurrentSumAngles);
+			}
+
+			LineSampleIdx = PosibleLineSampleIdx;
 			LinesDirection[LineSampleIdx] = LineDirection;
 			LinesPoint[LineSampleIdx] = LinePoint;
 		}
@@ -59,6 +87,8 @@ public:
 		);
 
 		UE_LOG(LogTemp, Display, TEXT("FTriangulationSolver::AddLine. HessianMatrix: %s"), *HessianString);
+
+		return true;
 	}
 
 	FVector ComputeEstimatedPoint(float ModifierStep = 1.f)
@@ -70,14 +100,19 @@ public:
 		return EstimatedPoint;
 	}
 
+	void Reset()
+	{
+		LinesDirection.Empty();
+		LinesPoint.Empty();
+	}
+
 private:
-	TArray<FVector> LinesPoint;
-	TArray<FVector> LinesDirection;
+	
 	
 	int32 LineSampleIdx = 0;
 
 	std::array<std::array<double, 3>, 3> HessianMatrix;
-
+	std::array<std::array<double, 3>, 3> HessianMatrix_Inv;
 	
 	void ComputeGradient()
 	{
@@ -98,11 +133,37 @@ private:
 			HessianMatrix[2][0] * x + HessianMatrix[2][1] * y + HessianMatrix[2][2] * z
 		);
 
-		Step = x * MV.X + y* MV.Y + z * MV.Z;
-		if(Step>0.0001f)
-			Step = Delta.Length() * Delta.Length() / Step / 4.f;
+		Step = 2.f *( x * MV.X + y* MV.Y + z * MV.Z);
+		if(Step>0.000001f)
+			Step = FVector::DotProduct(Delta , Delta) / Step;
 
 	}
+	
+	bool InverseSymmetric_Adjugate(double eps = 1e-12)
+	{
+		const double a = HessianMatrix[0][0], b = HessianMatrix[0][1], c = HessianMatrix[0][2];
+		const double d = HessianMatrix[1][1], e = HessianMatrix[1][2];
+		const double f = HessianMatrix[2][2];
+
+		const double C00 = d * f - e * e;
+		const double C01 = c * e - b * f;
+		const double C02 = b * e - c * d;
+		const double C11 = a * f - c * c;
+		const double C12 = b * c - a * e;
+		const double C22 = a * d - b * b;
+
+		const double det = a * C00 + b * C01 + c * C02;
+		if (FMath::Abs(det) <= eps) return false;
+
+		const double invDet = 1.0 / det;
+
+		std::array<std::array<double, 3>, 3> HessianMatrix_Inv2 = { {  { C00 * invDet, C01 * invDet, C02 * invDet },
+				   { C01 * invDet, C11 * invDet, C12 * invDet },
+				   { C02 * invDet, C12 * invDet, C22 * invDet }  } };
+		HessianMatrix_Inv = HessianMatrix_Inv2;
+		return true;
+	}
+
 	
 	
 };
@@ -124,9 +185,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Quirc QRCode")
 	FOnQRCodeDetected OnQRCodeDetected;
 
-	UPROPERTY(EditAnywhere)
-	int32 CameraSamples = 30;
-
 	UPROPERTY(BlueprintReadWrite)
 	UCameraComponent* Camera;
 
@@ -141,7 +199,10 @@ protected:
 	TArray<FVector> EstimatedCornersLocations;
 
 	UPROPERTY(BlueprintReadOnly)
-	TArray<FVector> QRCodeCornersRay;
+	TArray<FVector> LastQRCodeCornersRay;
+
+	UPROPERTY(BlueprintReadOnly)
+	FVector LastQRCodeStartPointRay;
 
 	UFUNCTION(BlueprintNativeEvent)
 	void OnQRUsedForPoseEstimation();
@@ -149,8 +210,16 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	FTransform CameraCachePose;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (ClampMin = "2"))
 	int32 QRCodeTriangulationSolverSamples = 3;
+
+	UPROPERTY(EditAnywhere, meta = (ClampMin = "10.0"))
+	int32 CameraSamples = 30;
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FTriangulationSolver> QRCodeCornerTSolvers;
 
 public:	
 	// Called every frame
@@ -178,12 +247,6 @@ private:
 	void UpdateCameraCachePose();
 
 	bool GetNearestPointBetweenLines(FVector P1, FVector Dir1, FVector P2, FVector Dir2, FVector& NearesPoint);
-
-	FVector PreviousCameraCachePoseLocation;
-
-	FVector PreviousCornerRay;
-
-	TArray<FTriangulationSolver> QRCodeCornerTSolvers;
 
 	int32 CameraPoseIndex = 0;
 	

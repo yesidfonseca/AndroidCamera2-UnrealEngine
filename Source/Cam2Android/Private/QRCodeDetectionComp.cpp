@@ -26,9 +26,9 @@ void UQRCodeDetectionComp::BeginPlay()
 
 	LastCamPoses.SetNum(CameraSamples);
 	LastCamPosesTimes.SetNum(CameraSamples);
-	QRCodeCornersRay.SetNum(4);
+	LastQRCodeCornersRay.SetNum(4);
 	FTriangulationSolver Solver = FTriangulationSolver();
-	Solver.LineMaxSamples = QRCodeTriangulationSolverSamples;
+	Solver.LineMaxSamples = FMath::Max(2,QRCodeTriangulationSolverSamples);
 	QRCodeCornerTSolvers.Init(Solver, 4);
 	EstimatedCornersLocations.SetNum(4);
 
@@ -45,6 +45,23 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 	static FAndroidCamera2Intrinsics CamLensIntrinsics = FAndroidCamera2Intrinsics();
 
 	static FQuat CamLensPoseRot = FQuat::Identity;
+	static FVector CamLensPosLoc = FVector::ZeroVector;
+
+	static FString CameraId = "";
+
+	static int32 CameraSampleIdx = 0;
+	if (Camera)
+	{
+		FTransform CamHDM = Camera->GetComponentToWorld();		
+		LastCamPoses[CameraSampleIdx] = CamHDM;
+		LastCamPosesTimes[CameraSampleIdx] = FPlatformTime::Cycles64();
+		CameraSampleIdx = (CameraSampleIdx + 1) % CameraSamples;
+	}
+
+	for (int32 i = 0; i < 4; i++)
+	{
+		EstimatedCornersLocations[i] = QRCodeCornerTSolvers[i].ComputeEstimatedPoint();
+	}
 
 	bool bGotFrame = false;
 	if (UGameInstance* GI = UGameplayStatics::GetGameInstance(GWorld))
@@ -53,31 +70,22 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 		{		
 			if (Cam2->GetCameraState() == EAndroidCamera2State::INITIALIZED)
 			{
-				static int32 CameraSampleIdx = 0;
-				if (Camera)
-				{
-					FTransform CamHDM = Camera->GetComponentToWorld();
-					FRotator LeftEyeRot;
-					FVector LeftEyeLoc;
-					GetEyeWorldPos(Cam2->GetCurrentCameraId(), CamHDM, LeftEyeRot, LeftEyeLoc);
-					LastCamPoses[CameraSampleIdx] = FTransform(LeftEyeRot, LeftEyeLoc);
-					LastCamPosesTimes[CameraSampleIdx] = FPlatformTime::Cycles64();
-					CameraSampleIdx = (CameraSampleIdx + 1) % CameraSamples;
-				}
-
 				if(!bCamInitialized)
 				{
+
 					FAndroidCamera2LensPose CamLensPose;
 					Cam2->GetCameraIntrinsics(Cam2->GetCurrentCameraId(), CamLensIntrinsics);
 					Cam2->GetCameraLensPose(Cam2->GetCurrentCameraId(), CamLensPose);
-					CamLensPoseRot = FRotator(CamLensPose.OrientationUECoord.Rotator().Pitch, 0, 0).Quaternion();
-					bCamInitialized = true;
-				}
+					FRotator CamLensPoseRotation = CamLensPose.OrientationUECoord.Rotator();
+					CamLensPoseRot = FRotator(CamLensPoseRotation.Pitch, 180 + CamLensPoseRotation.Yaw, 180 + CamLensPoseRotation.Roll).Quaternion();
+					CamLensPosLoc = CamLensPose.LocationUECoord*100;
+					UE_LOG(LogTemp, Display, TEXT("UQRCodeDetectionComp::TickComponent. CamLensPoseLocation:%s, CamLensPoseRotation:%s"), *CamLensPosLoc.ToString(), *CamLensPoseRot.Rotator().ToString());
 
-				for (int32 i = 0; i < 4; i++)
-				{
-					EstimatedCornersLocations[i] = QRCodeCornerTSolvers[i].ComputeEstimatedPoint();
+					CameraId = Cam2->GetCurrentCameraId();
+					bCamInitialized = true;
+					return;
 				}
+				
 				//UE_LOG(LogTemp, Display, TEXT("UQRCodeDetectionComp::TickComponent. EstP:%s, Delta:%s, Step:%f"), *EstimatedPoses[0].ToString(), *QRCodeCornerTSolvers[0].Delta.ToString(), QRCodeCornerTSolvers[0].Step);
 				
 
@@ -104,6 +112,18 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 					bGotFrame = true;
 
 					FQuircReader::DecodeFromLuma(YCurr.GetData(), Width, Height, Width, QRDetections);
+				}
+			}
+			else
+			{
+				bCamInitialized = false;
+
+				if (Cam2->GetCameraState() == EAndroidCamera2State::OFF)
+				{
+					for (int32 i = 0; i < 4; i++)
+					{
+						QRCodeCornerTSolvers[i].Reset();
+					}
 				}
 			}
 		}
@@ -133,7 +153,15 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 			return;
 		//UE_LOG(LogTemp, Display, TEXT("UQRCodeDetectionComp::TickComponent. PosDelta:%f, AngleDeg: %f"), PosDelta, AngleDeg);
 
-		FRotator Rot = (CameraCachePose.Rotator().Quaternion() * CamLensPoseRot).Rotator();
+		
+		FRotator EyeRot;
+		FVector EyeLoc;
+		GetEyeWorldPos(CameraId, CameraCachePose, EyeRot, EyeLoc);
+		FTransform EyeCameraCachePose = FTransform(EyeRot, EyeLoc);
+		//FTransform EyeCameraCachePose = FTransform(CameraCachePose.GetRotation(), CameraCachePose.GetLocation() + (CameraCachePose.GetRotation().RotateVector(CamLensPosLoc)));
+		TArray<FVector> CornersRays;
+		CornersRays.SetNum(4);
+		FRotator Rot = (EyeCameraCachePose.Rotator().Quaternion() * CamLensPoseRot).Rotator();
 		for (int32 i = 0; i< QRDetections[0].Corners.Num(); i++)
 		{
 			auto Corner = QRDetections[0].Corners[i];
@@ -141,40 +169,37 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 			FVector Ray = FVector(1, C.X, -C.Y);
 			Ray.Normalize();
 			Ray = Rot.RotateVector(Ray);
-			QRCodeCornersRay[i] = Ray;
+			CornersRays[i] = Ray;
 			
 		}
+		
 
-		if (FVector::Dist(CameraCachePose.GetLocation(), PreviousCameraCachePoseLocation) < 5.f)
-		{
-			const float AngleDeg2 = (180.0) / UE_DOUBLE_PI * FMath::Acos(FVector::DotProduct(QRCodeCornersRay[0], PreviousCornerRay));
-			//Avoid analizing when QRCodeRay is not changing too much the angle
-			if(AngleDeg2<10.f)
-				return;
-		}
-
-		PreviousCameraCachePoseLocation = CameraCachePose.GetLocation();
-		PreviousCornerRay = QRCodeCornersRay[0];
-
+		bool bShouldAdd = false;
 		for (int32 i = 0; i <4; i++)
 		{
-			QRCodeCornerTSolvers[i].AddLine(CameraCachePose.GetLocation(), QRCodeCornersRay[i]);
+			if (i == 0)
+			{
+				bShouldAdd = QRCodeCornerTSolvers[i].AddLine(EyeCameraCachePose.GetLocation(), CornersRays[i]);
+			}
+			else if (bShouldAdd)
+			{
+				QRCodeCornerTSolvers[i].AddLine(EyeCameraCachePose.GetLocation(), CornersRays[i], bShouldAdd);
+			}			
 		}
 
-		OnQRUsedForPoseEstimation();
+		if (bShouldAdd)
+		{
+			LastQRCodeCornersRay = CornersRays;
+			LastQRCodeStartPointRay = EyeCameraCachePose.GetLocation();
+			OnQRUsedForPoseEstimation();
+		}
 	}
-
-	
-
-	
-
 	
 }
 
 void UQRCodeDetectionComp::OnQRUsedForPoseEstimation_Implementation()
 {
 }
-
 
 
 void UQRCodeDetectionComp::InitializeLuma(int32 InWidth, int32 InHeight)
