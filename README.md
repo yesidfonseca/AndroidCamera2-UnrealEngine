@@ -51,6 +51,8 @@ A ready-to-run configuration lives in branches:
 - [QRCode Pose Estimation Quest3](https://github.com/yesidfonseca/AndroidCamera2-UnrealEngine/tree/QRCodePoseEstimation_FirstStage). [See video](https://www.youtube.com/watch?v=zfdnziqCe1g)
 ![a13079942043d444252e34dc38c1c157](https://github.com/user-attachments/assets/f195719e-4aaf-4d4d-b8ce-37008d15cbc6)
 ![101626d7427db6e142aef4dee8a43b5d mp4 (4)](https://github.com/user-attachments/assets/d0ef16cb-c1c4-4324-9d3c-fe9822ca776c)
+![Diseño sin título (2) (1)](https://github.com/user-attachments/assets/f8d18304-d8de-434a-ae94-f0bc7107f119)
+
 
 ## 🚀 Getting Started
 
