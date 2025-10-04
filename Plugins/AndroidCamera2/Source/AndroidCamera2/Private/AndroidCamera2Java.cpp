@@ -177,7 +177,7 @@ int64 FAndroidCamera2Java::GetLastFrameTimeStamp()
 	return CallMethod<int64>(getLastFrameTimeStampMethod);
 }
 
-bool FAndroidCamera2Java::GetCameraIntrinsincs(const FString& CameraId, float& FocalLengthX, float& FocalLengthY, float& PrincipalPointX, float& PrincipalPointY, float& Skew, int32& SensorWidthPx, int32& SensorHeightPx, float& focalLengthMm, float& SensorWidthMM, float& SensorHeightMM, int32& sensorOrientation)
+bool FAndroidCamera2Java::GetCameraIntrinsincs(const FString& CameraId, float& FocalLengthX, float& FocalLengthY, float& PrincipalPointX, float& PrincipalPointY, float& Skew, int32& activeSensorLeft, int32& activeSensorTop, int32& activeSensorRight, int32& activeSensorBottom, float& focalLengthMm, float& SensorWidthMM, float& SensorHeightMM, int32& sensorOrientation)
 {
 	// This can return an exception in some cases
 	JNIEnv* JEnv = FAndroidApplication::GetJavaEnv();
@@ -194,8 +194,10 @@ bool FAndroidCamera2Java::GetCameraIntrinsincs(const FString& CameraId, float& F
 	jfieldID Intrinsics_cx = FindField(JEnv, IntrinsicsClass,					"cx",				"F", false);
 	jfieldID Intrinsics_cy = FindField(JEnv, IntrinsicsClass,					"cy",				"F", false);
 	jfieldID Intrinsics_skew = FindField(JEnv, IntrinsicsClass,					"skew",				"F", false);
-	jfieldID Intrinsics_widthPx = FindField(JEnv, IntrinsicsClass,				"widthPx",			"I", false);
-	jfieldID Intrinsics_heightPx = FindField(JEnv, IntrinsicsClass,				"heightPx",			"I", false);
+	jfieldID Intrinsics_activeSensorLeft = FindField(JEnv, IntrinsicsClass,		"activeSensorLeft",	"I", false);
+	jfieldID Intrinsics_activeSensorRight = FindField(JEnv, IntrinsicsClass,	"activeSensorRight","I", false);
+	jfieldID Intrinsics_activeSensorTop = FindField(JEnv, IntrinsicsClass,		"activeSensorTop",	"I", false);
+	jfieldID Intrinsics_activeSensorBottom = FindField(JEnv, IntrinsicsClass,	"activeSensorBottom","I", false);
 	jfieldID Intrinsics_focalLengthMm = FindField(JEnv, IntrinsicsClass,		"focalLengthMm",	"F", false);
 	jfieldID Intrinsics_sensorWidthMm = FindField(JEnv, IntrinsicsClass,		"sensorWidthMm",	"F", false);
 	jfieldID Intrinsics_sensorHeightMm = FindField(JEnv, IntrinsicsClass,		"sensorHeightMm",	"F", false);
@@ -206,8 +208,10 @@ bool FAndroidCamera2Java::GetCameraIntrinsincs(const FString& CameraId, float& F
 	PrincipalPointX = JEnv->GetFloatField(Result,	Intrinsics_cx);
 	PrincipalPointY = JEnv->GetFloatField(Result,	Intrinsics_cy);
 	Skew = JEnv->GetFloatField(Result,				Intrinsics_skew);
-	SensorWidthPx = JEnv->GetIntField(Result,		Intrinsics_widthPx);
-	SensorHeightPx = JEnv->GetIntField(Result,		Intrinsics_heightPx);
+	activeSensorLeft = JEnv->GetIntField(Result,	Intrinsics_activeSensorLeft);
+	activeSensorRight = JEnv->GetIntField(Result,	Intrinsics_activeSensorRight);
+	activeSensorTop = JEnv->GetIntField(Result,		Intrinsics_activeSensorTop);
+	activeSensorBottom = JEnv->GetIntField(Result,	Intrinsics_activeSensorBottom);
 	focalLengthMm = JEnv->GetFloatField(Result,		Intrinsics_focalLengthMm);
 	SensorWidthMM = JEnv->GetFloatField(Result,		Intrinsics_sensorWidthMm);
 	SensorHeightMM = JEnv->GetFloatField(Result,	Intrinsics_sensorHeightMm);

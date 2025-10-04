@@ -42,7 +42,7 @@ void UQRCodeDetectionComp::TickComponent(float DeltaTime, ELevelTick TickType, F
 			{
 				const uint8* YPtr = nullptr;
 				int32 YW = 0, YH = 0;
-				int64 YTs = 0;
+				uint64 YTs = 0;
 				if (Cam2->GetLuminanceBufferPtr(YPtr, YW, YH, YTs))
 				{
 					// comprobar dimensiones

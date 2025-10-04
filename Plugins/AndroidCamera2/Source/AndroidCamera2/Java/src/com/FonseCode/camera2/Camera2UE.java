@@ -128,6 +128,8 @@ public final class Camera2UE {
 
     private Context appContext;
 
+    private long initialCamTime =0;
+    private long SensorOffsetTime = -1;
 
     private long framecounter = 0;
     FrameUpdateInfo FrameInfo = new FrameUpdateInfo();
@@ -177,17 +179,21 @@ public final class Camera2UE {
 
     public Camera2UE(Context context) {
         this.appContext = context.getApplicationContext();
+        initialCamTime = android.os.SystemClock.elapsedRealtimeNanos();
+        SensorOffsetTime = -1;
     }
 
     private Camera2UE() {
-    GameActivity ga = GameActivity.Get();
-    if (ga == null) {
-        Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
-        return;
+        GameActivity ga = GameActivity.Get();
+        if (ga == null) {
+            Log.e(TAG, "GameActivity.Get() es null (muy temprano en el ciclo de vida).");
+            return;
+        }
+   
+        appContext = ga.getApplicationContext();
+        initialCamTime = android.os.SystemClock.elapsedRealtimeNanos();
+        SensorOffsetTime = -1;
     }
-
-    appContext = ga.getApplicationContext();
-}
 
     // -------------------------------------------------------
     // 1) Obtener lista de camaras disponibles (IDs de Camera2)
@@ -214,8 +220,6 @@ public final class Camera2UE {
     @SuppressLint("MissingPermission")
     public synchronized boolean initializeCamera(String inputCameraId, int AE_ModeIn, int AF_ModeIn, int AWB_ModeIn, int ControlModeIn, int RotMode, int previewWidth, int previewHeight, int stillCaptureWidth, int stillCaptureHeight, int targetFPS) {
         try {
-
-
 
             ensureManager();
             if (inputCameraId == null || inputCameraId.isEmpty()) {
@@ -719,7 +723,10 @@ public final class Camera2UE {
             NativeYuv.I420Rotate(FrameInfo.dy, FrameInfo.du, FrameInfo.dv, FrameInfo.Width, FrameInfo.Height, FrameInfo.dyRot, FrameInfo.duRot, FrameInfo.dvRot, FrameInfo.WidthRot, FrameInfo.HeightRot, FrameInfo.Orientation);
         }
 
-        FrameInfo.timeStamp = image.getTimestamp();
+        if(SensorOffsetTime<0) {
+                SensorOffsetTime = image.getTimestamp() - ( android.os.SystemClock.elapsedRealtimeNanos()-initialCamTime);
+        }
+        FrameInfo.timeStamp = image.getTimestamp() - SensorOffsetTime;
 
         Trace.endSection();
     }
@@ -822,19 +829,11 @@ public final class Camera2UE {
         // En pixeles (coordenadas del active array)
         public float fx, fy, cx, cy, skew;
         // Tamaño del active array en pixeles
-        public int widthPx, heightPx;
+        public int activeSensorLeft, activeSensorRight, activeSensorTop, activeSensorBottom;
         // Datos útiles adicionales
         public float focalLengthMm;        // distancia focal elegida (mm)
         public float sensorWidthMm, sensorHeightMm; // tamaño físico del sensor (mm)
         public int sensorOrientation;      // 90, 270, etc.
-
-        @Override public String toString() {
-            return String.format(
-                    "fx=%.3f fy=%.3f cx=%.3f cy=%.3f skew=%.3f size=%dx%d, f=%.3fmm, sensor=%.3fx%.3fmm, orient=%d",
-                    fx, fy, cx, cy, skew, widthPx, heightPx, focalLengthMm,
-                    sensorWidthMm, sensorHeightMm, sensorOrientation
-            );
-        }
     }
 
     public class LensPose {
@@ -916,17 +915,14 @@ public final class Camera2UE {
             android.util.SizeF physicalSize = ch.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
             if (physicalSize == null) return null;
 
-            int widthPx = active.width();
-            int heightPx = active.height();
-            float sensorWmm = physicalSize.getWidth();
-            float sensorHmm = physicalSize.getHeight();
 
-
-            out.widthPx = widthPx;
-            out.heightPx = heightPx;
+            out.activeSensorLeft = active.left;
+            out.activeSensorRight = active.right;
+            out.activeSensorTop = active.top;
+            out.activeSensorBottom = active.bottom;
             out.focalLengthMm = focalMm;
-            out.sensorWidthMm = sensorWmm;
-            out.sensorHeightMm = sensorHmm;
+            out.sensorWidthMm = physicalSize.getWidth();
+            out.sensorHeightMm = physicalSize.getHeight();
             out.sensorOrientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION);
 
             // 1) Intentar intrinsecas calibradas (en pixeles): [fx, fy, cx, cy, s]
@@ -939,13 +935,13 @@ public final class Camera2UE {
                 out.skew = K[4];
             } else {
                 // 2) Fallback: calcular fx/fy en pixeles a partir de focal (mm) y sensor físico (mm)
-                float fx = focalMm * (widthPx / sensorWmm);
-                float fy = focalMm * (heightPx / sensorHmm);
+                float fx = focalMm * (active.width() / out.sensorWidthMm);
+                float fy = focalMm * (active.height() / out.sensorHeightMm);
 
                 out.fx = fx;
                 out.fy = fy;
-                out.cx = active.left + widthPx * 0.5f;
-                out.cy = active.top + heightPx * 0.5f;
+                out.cx = active.left + active.width() * 0.5f;
+                out.cy = active.top + active.height() * 0.5f;
                 out.skew = 0.0f;
             }
         }catch(CameraAccessException e)
